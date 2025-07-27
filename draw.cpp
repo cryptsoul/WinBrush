@@ -45,6 +45,8 @@ int WINAPI WinMain(HINSTANCE hInst, HINSTANCE hPrevInst, LPSTR pCmdLine, int nCm
         NULL
     );
 
+
+
     if (hwnd == NULL)
     {
         return 0;
@@ -63,22 +65,43 @@ int WINAPI WinMain(HINSTANCE hInst, HINSTANCE hPrevInst, LPSTR pCmdLine, int nCm
 }
 
 LRESULT CALLBACK WindowProc(HWND hwnd, UINT umsg, WPARAM wp, LPARAM lp){
+    int val;
     switch (umsg)
     {
         case WM_COMMAND:
             switch (wp)
             {
             case FILE_MENU_EXIT:
-            DestroyWindow(hwnd);
+                val = MessageBoxW(hwnd, L"Are you sure?", L"Wait!", MB_YESNO | MB_ICONEXCLAMATION);
+                if(val==IDYES){
+                DestroyWindow(hwnd);
+                }
                 break;
 
             case FILE_MENU_NEW:
                 MessageBeep(MB_ICONASTERISK); // MB_OK
                 break;
             case GENERATE_BUTTON:
+
                     wchar_t name[30], age[10], out[50];
+            
                     GetWindowText(hName, name, 30);
                     GetWindowText(hAge, age, 10);
+
+                    if(wcscmp(name, L"")==0 || wcscmp(age, L"")==0){
+                        val = MessageBoxW(hwnd, L"You did not enter anything!", NULL, MB_ABORTRETRYIGNORE | MB_ICONERROR);
+
+                        switch (val)
+                        {
+                        case IDABORT:
+                            DestroyWindow(hwnd);
+                            break;
+                        case IDRETRY:
+                            return 0;
+                        case IDIGNORE:
+                            break;    
+                        }
+                    }
 
                     wcscpy(out, name);
                     wcscat(out, L" is ");
@@ -140,8 +163,8 @@ void AddControls(HWND hwnd){
 }
 
 void loadImages(){
-    hLogoImage = (HBITMAP)LoadImageW(NULL, L"Logo.bmp", IMAGE_BITMAP, 100, 100, LR_LOADFROMFILE);
+    hLogoImage = (HBITMAP)LoadImageW(NULL, L"Logo.bmp", IMAGE_BITMAP, 100, 100, LR_LOADFROMFILE); //Logo.bmp is picture in the same dir
     
-    hGenerateImage = (HBITMAP)LoadImageW(NULL, L"Generate.bmp", IMAGE_BITMAP, 100, 25, LR_LOADFROMFILE);
+    hGenerateImage = (HBITMAP)LoadImageW(NULL, L"Generate.bmp", IMAGE_BITMAP, 100, 25, LR_LOADFROMFILE); //Generate.bmp is picture in the same dir
 
 }
