@@ -14,9 +14,13 @@ LRESULT CALLBACK WindowProc(HWND, UINT, WPARAM, LPARAM);
 void AddMenus(HWND);
 void AddControls(HWND);
 void loadImages();
+void registerDialogClass(HINSTANCE);
+void displayDialog(HWND);
+
+
 
 HMENU hMenu;
-HWND hName, hAge, hOut, hLogo;
+HWND hName, hAge, hOut, hLogo, hMainWindow;
 HBITMAP hLogoImage, hGenerateImage;
 
 int WINAPI WinMain(HINSTANCE hInst, HINSTANCE hPrevInst, LPSTR pCmdLine, int nCmdShow) {
@@ -24,7 +28,7 @@ int WINAPI WinMain(HINSTANCE hInst, HINSTANCE hPrevInst, LPSTR pCmdLine, int nCm
 
     WNDCLASSW wc = {};
     wc.hCursor = LoadCursorW(NULL, L"IDC_ARROW");
-    wc.hbrBackground = (HBRUSH)COLOR_BACKGROUND;
+    wc.hbrBackground = (HBRUSH)COLOR_WINDOW;
     wc.lpfnWndProc = WindowProc;
     wc.hInstance = hInst;
     wc.lpszClassName = CLASS_NAME;
@@ -33,7 +37,9 @@ int WINAPI WinMain(HINSTANCE hInst, HINSTANCE hPrevInst, LPSTR pCmdLine, int nCm
         return -1;
     }
 
-    HWND hwnd = CreateWindowExW(
+    registerDialogClass(hInst);
+
+    hMainWindow = CreateWindowExW(
         0,
         CLASS_NAME,
         L"Paint",
@@ -47,12 +53,12 @@ int WINAPI WinMain(HINSTANCE hInst, HINSTANCE hPrevInst, LPSTR pCmdLine, int nCm
 
 
 
-    if (hwnd == NULL)
+    if (hMainWindow == NULL)
     {
         return 0;
     }
 
-    ShowWindow(hwnd, nCmdShow);
+    ShowWindow(hMainWindow, nCmdShow);
 
     MSG msg = { };
     while (GetMessage(&msg, NULL, 0, 0) > 0)
@@ -79,6 +85,7 @@ LRESULT CALLBACK WindowProc(HWND hwnd, UINT umsg, WPARAM wp, LPARAM lp){
                 break;
 
             case FILE_MENU_NEW:
+                displayDialog(hwnd);
                 MessageBeep(MB_ICONASTERISK); // MB_OK
                 break;
             case GENERATE_BUTTON:
@@ -102,7 +109,7 @@ LRESULT CALLBACK WindowProc(HWND hwnd, UINT umsg, WPARAM wp, LPARAM lp){
                             break;    
                         }
                     }
-
+ 
                     wcscpy(out, name);
                     wcscat(out, L" is ");
                     wcscat(out, age);
@@ -167,4 +174,46 @@ void loadImages(){
     
     hGenerateImage = (HBITMAP)LoadImageW(NULL, L"Generate.bmp", IMAGE_BITMAP, 100, 25, LR_LOADFROMFILE); //Generate.bmp is picture in the same dir
 
+}
+
+
+LRESULT CALLBACK DialogProcedure(HWND hwnd, UINT msg, WPARAM wp, LPARAM lp){
+    switch (msg)
+    {
+    case WM_COMMAND:
+        switch (wp)
+        {
+        case 1:
+            EnableWindow(hMainWindow, true);
+            DestroyWindow(hwnd);
+            return 0;
+        }
+    break;
+    case WM_CLOSE:
+        DestroyWindow(hwnd); 
+        return 0;
+    default:
+        return DefWindowProcW(hwnd, msg, wp, lp);
+    }
+}
+
+void registerDialogClass(HINSTANCE hInst){
+
+    WNDCLASSW dialog = {};
+    dialog.hCursor = LoadCursorW(NULL, L"IDC_CROSS");
+    dialog.hbrBackground = (HBRUSH)COLOR_WINDOW;
+    dialog.lpfnWndProc = DialogProcedure;
+    dialog.hInstance = hInst;
+    dialog.lpszClassName = L"myDialogClass";
+
+    RegisterClassW(&dialog);
+}
+
+void displayDialog(HWND hwnd){
+
+   HWND hDlg = CreateWindowW(L"myDialogClass", L"Dialog", WS_VISIBLE | WS_OVERLAPPEDWINDOW, 400, 400, 200, 200, hwnd, NULL, NULL, NULL);
+
+    CreateWindowW(L"Button", L"Close", WS_VISIBLE | WS_CHILD, 20, 20, 100, 40, hDlg, (HMENU)1, NULL, NULL);
+
+    EnableWindow (hwnd, false);
 }
