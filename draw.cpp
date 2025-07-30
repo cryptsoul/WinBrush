@@ -2,6 +2,7 @@
 #define UNICODE
 #endif
 #define OPEN_FILE_BUTTON 1
+#define SAVE_FILE_BUTTON 2
 
 #include <windows.h>
 #include<stdio.h>
@@ -38,25 +39,49 @@ int WINAPI WinMain(HINSTANCE hInst, HINSTANCE hPrevInst, LPSTR pCmdLine, int nCm
 }
 
 void display_file(wchar_t* path){
-    FILE *file = _wfopen (path, L"rb");
-    if(!file) return;
+    FILE *file = _wfopen(path, L"rb");
+    if (!file) return;
 
-    fseek(file, 0, SEEK_END);
-    int _size = ftell(file);
-    rewind(file);
-
-    char* buffer = new char[_size+1];
-    fread(buffer, 1, _size, file);
-    buffer[_size] = '\0';
-
-    int wlen = MultiByteToWideChar(CP_ACP, 0, buffer, -1, NULL, 0);
-    wchar_t* wbuffer = new wchar_t[wlen];
-    MultiByteToWideChar(CP_ACP, 0, buffer, -1, wbuffer, wlen);
     
-    SetWindowText(hEdit, wbuffer);
+    unsigned char bom[2];
+    fread(bom, 1, 2, file);
+
+    if (bom[0] == 0xFF && bom[1] == 0xFE) {
+        
+        fseek(file, 0, SEEK_END);
+        int _size = (ftell(file) - 2) / sizeof(wchar_t); 
+        fseek(file, 2, SEEK_SET); 
+
+        wchar_t* buffer = new wchar_t[_size + 1];
+        fread(buffer, sizeof(wchar_t), _size, file);
+        buffer[_size] = L'\0';
+
+        SetWindowTextW(hEdit, buffer);
+        delete[] buffer;
+    } else {
+        
+        fseek(file, 0, SEEK_END);
+        int _size = ftell(file);
+        rewind(file);
+
+        char* buffer = new char[_size + 1];
+        fread(buffer, 1, _size, file);
+        buffer[_size] = '\0';
+
+        int wlen = MultiByteToWideChar(CP_UTF8, 0, buffer, -1, NULL, 0);
+        wchar_t* wbuffer = new wchar_t[wlen];
+        MultiByteToWideChar(CP_UTF8, 0, buffer, -1, wbuffer, wlen);
+
+        SetWindowTextW(hEdit, wbuffer);
+
+        delete[] buffer;
+        delete[] wbuffer;
+    }
+
+    fclose(file);
 }
 
-void openFile(HWND hwnd){
+void open_file(HWND hwnd){
     OPENFILENAME ofn;
 
     wchar_t file_name[100];
@@ -76,19 +101,60 @@ void openFile(HWND hwnd){
     display_file(ofn.lpstrFile);
 }
 
-LRESULT CALLBACK WindowProc(HWND hwnd, UINT umsg, WPARAM wp, LPARAM lp){
+void write_file(wchar_t* path){
+    FILE *file = _wfopen(path, L"wb");
+    if(!file) return;
 
-    switch (umsg)
+    
+    unsigned char bom[2] = {0xFF, 0xFE};
+    fwrite(bom, 1, 2, file);
+
+    int _size = GetWindowTextLengthW(hEdit);
+    wchar_t* data = new wchar_t[_size+1];
+    GetWindowTextW(hEdit, data, _size+1);
+
+    fwrite(data, sizeof(wchar_t), _size, file);
+
+    delete[] data;
+    fclose(file);
+}
+
+void save_file(HWND hwnd){
+    OPENFILENAME ofn;
+
+    wchar_t file_name[100];
+
+    ZeroMemory(&ofn, sizeof(OPENFILENAME));
+
+    ofn.lStructSize = sizeof(OPENFILENAME);
+    ofn.hwndOwner = hwnd;
+    ofn.lpstrFile = file_name;
+    ofn.lpstrFile [0] = '\0';
+    ofn.nMaxFile = 100;
+    ofn.lpstrFilter = L"All files\0*.*\0Source Files\0*.CPP\0Text Files\0*.TXT\0";
+    ofn.nFilterIndex = 1;
+
+    GetSaveFileNameW(&ofn);
+
+    write_file(ofn.lpstrFile);
+}
+
+
+LRESULT CALLBACK WindowProc(HWND hwnd, UINT msg, WPARAM wp, LPARAM lp){
+
+    switch (msg)
     {
         case WM_COMMAND:
-        
-        switch (wp)
-        {
-            case OPEN_FILE_BUTTON:
-                openFile(hwnd);
-            return 0;
-            
-        }
+            switch (wp)
+            {
+                case OPEN_FILE_BUTTON:
+                    open_file(hwnd);
+                return 0;
+
+                case SAVE_FILE_BUTTON:
+                save_file(hwnd);
+                return 0; 
+            }
         break;
         case WM_CREATE:
             AddControls(hwnd);
@@ -97,10 +163,12 @@ LRESULT CALLBACK WindowProc(HWND hwnd, UINT umsg, WPARAM wp, LPARAM lp){
             PostQuitMessage(0);
             return 0;
     }
-    return DefWindowProc(hwnd, umsg, wp, lp);
+    return DefWindowProc(hwnd, msg, wp, lp);
 }
 
 void AddControls(HWND hwnd){
     CreateWindowW(L"Button", L"Open File ", WS_VISIBLE | WS_CHILD, 10, 10, 150, 35, hwnd, (HMENU)OPEN_FILE_BUTTON, NULL, NULL);
-    hEdit = CreateWindowW(L"Edit", L"", WS_VISIBLE | WS_CHILD | ES_MULTILINE | WS_BORDER | ES_AUTOVSCROLL, 10, 50, 400, 300, hwnd, NULL, NULL, NULL);
+    CreateWindowW(L"Button", L"Save File ", WS_VISIBLE | WS_CHILD, 170, 10, 150, 35, hwnd, (HMENU)SAVE_FILE_BUTTON, NULL, NULL);
+
+    hEdit = CreateWindowW(L"Edit", L"", WS_VISIBLE | WS_CHILD | ES_MULTILINE | WS_BORDER | WS_VSCROLL | WS_HSCROLL, 10, 50, 400, 300, hwnd, NULL, NULL, NULL);
 }
