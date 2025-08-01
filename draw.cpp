@@ -2,11 +2,16 @@
 #define UNICODE
 #endif
 
+#define  IDM_FILE_NEW 1
+#define  IDM_FILE_OPEN 2
+#define  IDM_FILE_SAVE 3 
+
 #include <windows.h>
 
 LRESULT CALLBACK WindowProc(HWND hWnd, UINT uMsg, WPARAM wp, LPARAM lp);
 
 void AddMenus(HWND);
+void AddControls(HWND);
 
 HMENU hMenu;
 
@@ -28,7 +33,7 @@ int WINAPI wWinMain(HINSTANCE hInst, HINSTANCE hPrevInst, PWSTR pCmdLine, int nC
 
     if(hWnd == NULL) return 0;
 
-    ShowWindow(hWnd, nCmdShow);
+    ShowWindow(hWnd, SW_MAXIMIZE);
 
     MSG msg = {};
     while (GetMessage(&msg, NULL, 0,0) > 0)
@@ -45,9 +50,16 @@ LRESULT CALLBACK WindowProc(HWND hWnd, UINT uMsg, WPARAM wp, LPARAM lp){
         case WM_COMMAND:
             switch (wp)
             {
-            case 1:
+            case  IDM_FILE_NEW:
                 /* code */
                 return 0;
+            case   IDM_FILE_OPEN:
+                /* code */
+                return 0;
+            case  IDM_FILE_SAVE:
+                /* code */
+                return 0;
+
             }
         return 0;
 
@@ -57,6 +69,7 @@ LRESULT CALLBACK WindowProc(HWND hWnd, UINT uMsg, WPARAM wp, LPARAM lp){
 
         case WM_CREATE:
             AddMenus(hWnd);
+            AddControls(hWnd);
             return 0;
     }
     return DefWindowProc(hWnd, uMsg, wp, lp);
@@ -67,8 +80,15 @@ void AddMenus(HWND hWnd ){
     hMenu = CreateMenu();
     HMENU hFileMenu = CreateMenu();
 
-    AppendMenu (hMenu, MF_POPUP, (UINT_PTR)hFileMenu, L"File");
-    AppendMenu (hMenu, MF_STRING, NULL, L"Help");
+    AppendMenu(hMenu, MF_POPUP, (UINT_PTR)hFileMenu, L"File");
+    
+    AppendMenu (hFileMenu, MF_STRING,  IDM_FILE_NEW, L"New");
+    AppendMenu (hFileMenu, MF_STRING,   IDM_FILE_OPEN, L"Open");
+    AppendMenu(hFileMenu, MF_STRING,  IDM_FILE_SAVE, L"Save");
 
     SetMenu(hWnd, hMenu);
+}
+
+void AddControls(HWND hWnd){
+
 }
