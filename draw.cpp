@@ -22,7 +22,7 @@ int WINAPI wWinMain(HINSTANCE hInst, HINSTANCE hPrevInst, PWSTR pCmdLine, int nC
     WNDCLASS wc = {};
 
     wc.hCursor = LoadCursor(NULL, IDC_ARROW);
-    wc.hbrBackground = (HBRUSH)COLOR_BACKGROUND;
+    wc.hbrBackground = CreateSolidBrush(RGB(28,34,33));
     wc.lpfnWndProc = WindowProc;
     wc.hInstance = hInst;
     wc.lpszClassName = CLASS_NAME;
@@ -70,6 +70,18 @@ LRESULT CALLBACK WindowProc(HWND hWnd, UINT uMsg, WPARAM wp, LPARAM lp){
         case WM_CREATE:
             AddMenus(hWnd);
             AddControls(hWnd);
+            return 0;
+        case WM_PAINT:
+            PAINTSTRUCT ps;
+            HDC hdc = BeginPaint(hWnd, &ps);
+            RECT clientRect;
+
+            GetClientRect(hWnd, &clientRect);
+            RECT toolbar = {0, 0, clientRect.right, 100};
+            FillRect(hdc, &toolbar, CreateSolidBrush(RGB(37,41,40)));
+
+            RECT canvas = {50, 150, clientRect.right - 50, clientRect.bottom - 50};
+            FillRect(hdc, &canvas, CreateSolidBrush(RGB(255,255,255)));
             return 0;
     }
     return DefWindowProc(hWnd, uMsg, wp, lp);
