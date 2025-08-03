@@ -74,12 +74,46 @@ LRESULT CALLBACK WindowProc(HWND hWnd, UINT uMsg, WPARAM wp, LPARAM lp){
         case WM_PAINT:
             PAINTSTRUCT ps;
             HDC hdc = BeginPaint(hWnd, &ps);
+            
+            //toolbar 
             RECT clientRect;
-
             GetClientRect(hWnd, &clientRect);
             RECT toolbar = {0, 0, clientRect.right, 100};
             FillRect(hdc, &toolbar, CreateSolidBrush(RGB(37,41,40)));
 
+            //Draw line
+            HPEN hPen = CreatePen(PS_SOLID, 2, RGB(55,59,58));
+            SelectObject(hdc, hPen);
+            MoveToEx(hdc, 150, 6, NULL);
+            LineTo(hdc, 150, 96);
+
+            //basic color
+            COLORREF basicColor[]={
+                RGB(255, 0, 0),   RGB(0, 255, 0),   RGB(0, 0, 255),
+                RGB(255, 255, 0), RGB(0, 255, 255), RGB(255, 0, 255),
+                RGB(128, 0, 0),   RGB(0, 128, 0),   RGB(0, 0, 128),
+                RGB(128, 128, 0), RGB(0, 128, 128), RGB(128, 0, 128),
+                RGB(192, 192, 192), RGB(128, 128, 128),
+                RGB(255, 128, 0), RGB(128, 255, 0), RGB(0, 128, 255),
+                RGB(255, 0, 128), RGB(128, 0, 255), RGB(0, 255, 128)
+            };
+
+            int x = 156, y = 4, colorBoxSize = 20, box_X;
+            for (int i = 0; i < 20; i++) {
+                if(i<10){ 
+                    box_X = x + (i * (colorBoxSize + 4));
+                }
+                else {
+                    y = 28; 
+                    box_X = x + ((i-10) * (colorBoxSize + 4));
+                }
+                HBRUSH brush = CreateSolidBrush(basicColor[i]);
+                SelectObject(hdc, brush);
+                Rectangle(hdc, box_X, y, box_X + colorBoxSize, y + colorBoxSize);
+                DeleteObject(brush);
+            }
+
+            //the canvas for now 
             RECT canvas = {50, 150, clientRect.right - 50, clientRect.bottom - 50};
             FillRect(hdc, &canvas, CreateSolidBrush(RGB(255,255,255)));
             return 0;
@@ -103,4 +137,13 @@ void AddMenus(HWND hWnd ){
 
 void AddControls(HWND hWnd){
 
+    //tools
+    CreateWindowW( L"Button", L"Pencil", WS_VISIBLE | WS_CHILD, 4, 4, 44, 44, hWnd, NULL, NULL, NULL);
+    CreateWindowW( L"Button", L"Fill", WS_VISIBLE | WS_CHILD, 52, 4, 44, 44, hWnd, NULL, NULL, NULL);
+    CreateWindowW( L"Button", L"Text", WS_VISIBLE | WS_CHILD, 100, 4, 44, 44, hWnd, NULL, NULL, NULL);
+    CreateWindowW( L"Button", L"Eraser", WS_VISIBLE | WS_CHILD, 4, 52, 44, 44, hWnd, NULL, NULL, NULL);
+    CreateWindowW( L"Button", L"Color picker", WS_VISIBLE | WS_CHILD, 52, 52, 44, 44, hWnd, NULL, NULL, NULL);
+    CreateWindowW( L"Button", L"Magnifier", WS_VISIBLE | WS_CHILD, 100, 52, 44, 44, hWnd, NULL, NULL, NULL);
+
+    //Shapes
 }
