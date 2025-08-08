@@ -7,6 +7,7 @@
 #define  IDM_FILE_SAVE 3 
 
 #include <windows.h>
+#include <windowsx.h>
 
 LRESULT CALLBACK WindowProc(HWND hWnd, UINT uMsg, WPARAM wp, LPARAM lp);
 
@@ -15,7 +16,8 @@ void AddControls(HWND);
 
 HMENU hMenu;
 
-// Helper function to create/recreate the canvas bitmap and memory DC
+
+
 void CreateCanvasBitmap(HWND hWnd, RECT canvas, HDC &hMemDC, HBITMAP &hBitmap) {
     HDC hdc = GetDC(hWnd);
     hMemDC = CreateCompatibleDC(hdc);
@@ -70,6 +72,15 @@ LRESULT CALLBACK WindowProc(HWND hWnd, UINT uMsg, WPARAM wp, LPARAM lp){
     static RECT clientRect;
     static RECT canvas;
 
+    struct ColorBox {
+        RECT rect;
+        COLORREF color;
+    };
+    static ColorBox boxes[20];
+    static COLORREF colorChoic = RGB(0, 0, 0);
+    static HPEN hPenColor = CreatePen(PS_SOLID, 2, colorChoic);
+
+
     switch (uMsg)
     {
         case WM_COMMAND:
@@ -77,13 +88,10 @@ LRESULT CALLBACK WindowProc(HWND hWnd, UINT uMsg, WPARAM wp, LPARAM lp){
             switch (wp)
             {
             case  IDM_FILE_NEW:
-                /* code */
                 return 0;
             case   IDM_FILE_OPEN:
-                /* code */
                 return 0;
             case  IDM_FILE_SAVE:
-                /* code */
                 return 0;
             }
         }
@@ -110,7 +118,7 @@ LRESULT CALLBACK WindowProc(HWND hWnd, UINT uMsg, WPARAM wp, LPARAM lp){
 
         case WM_SIZE:
         {
-GetClientRect(hWnd, &clientRect);
+            GetClientRect(hWnd, &clientRect);
             canvas = {50, 150, clientRect.right - 50, clientRect.bottom - 50};
 
             if (hBitmap) DeleteObject(hBitmap);
@@ -130,6 +138,20 @@ GetClientRect(hWnd, &clientRect);
                 ptPrevious.x = pt.x - canvas.left;
                 ptPrevious.y = pt.y - canvas.top;
             }
+            else
+            {
+                int x = GET_X_LPARAM(lp);
+                int y = GET_Y_LPARAM(lp);
+
+                for (int i = 0; i<20; i++){
+                    if(PtInRect(&boxes[i].rect, {x, y})){
+                        colorChoic = boxes[i].color;
+                        if (hPenColor) DeleteObject(hPenColor);
+                        hPenColor = CreatePen(PS_SOLID, 2, colorChoic);
+                        break;
+                    }
+                }
+            }
         }
         return 0;
         
@@ -143,6 +165,8 @@ GetClientRect(hWnd, &clientRect);
                     int x = pt.x - canvas.left;
                     int y = pt.y - canvas.top;
                     
+                    SelectObject(hMemDC, hPenColor);
+
                     MoveToEx(hMemDC, ptPrevious.x, ptPrevious.y, NULL);
                     LineTo(hMemDC, x, y);
 
@@ -150,6 +174,10 @@ GetClientRect(hWnd, &clientRect);
                     ptPrevious.y = y;
 
                     InvalidateRect(hWnd, &canvas, FALSE);
+                    
+                }
+                else {
+
                 }
             }
         }
@@ -194,18 +222,22 @@ GetClientRect(hWnd, &clientRect);
                 RGB(112, 146, 190), RGB(200, 191, 231)
             };
 
-            int x = 156, y = 4, colorBoxSize = 20, box_X;
+            int x = 156, y = 4, colorBoxSize = 20, box_x;
             for (int i = 0; i < 20; i++) {
                 if(i<10){ 
-                    box_X = x + (i * (colorBoxSize + 4));
+                    box_x = x + (i * (colorBoxSize + 4));
                 }
                 else {
                     y = 28; 
-                    box_X = x + ((i-10) * (colorBoxSize + 4));
+                    box_x = x + ((i-10) * (colorBoxSize + 4));
                 }
+
+                boxes[i].rect = {box_x, y, box_x + colorBoxSize, y+colorBoxSize};
+                boxes[i].color = basicColor[i];
+
                 HBRUSH brush = CreateSolidBrush(basicColor[i]);
                 SelectObject(hdc, brush);
-                Rectangle(hdc, box_X, y, box_X + colorBoxSize, y + colorBoxSize);
+                Rectangle(hdc, box_x, y, box_x + colorBoxSize, y + colorBoxSize);
                 DeleteObject(brush);
             }
 
