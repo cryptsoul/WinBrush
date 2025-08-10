@@ -5,21 +5,28 @@
 #define  IDM_FILE_NEW 1
 #define  IDM_FILE_OPEN 2
 #define  IDM_FILE_SAVE 3 
+#define  IDB_CUSTOM_COLOR 4
 
 #include <windows.h>
 #include <windowsx.h>
+#include <commdlg.h>
 
-LRESULT CALLBACK WindowProc(HWND hWnd, UINT uMsg, WPARAM wp, LPARAM lp);
+
+LRESULT CALLBACK WindowProc(HWND hwnd, UINT uMsg, WPARAM wp, LPARAM lp);
 
 void AddMenus(HWND);
 void AddControls(HWND);
+void CustomColorBox(HWND);
 
 HMENU hMenu;
 
+static COLORREF colorChoice = RGB(0, 0, 0);
+static COLORREF customColors[16];
+static HPEN hPenColor = CreatePen(PS_SOLID, 2, colorChoice);
 
 
-void CreateCanvasBitmap(HWND hWnd, RECT canvas, HDC &hMemDC, HBITMAP &hBitmap) {
-    HDC hdc = GetDC(hWnd);
+void CreateCanvasBitmap(HWND hwnd, RECT canvas, HDC &hMemDC, HBITMAP &hBitmap) {
+    HDC hdc = GetDC(hwnd);
     hMemDC = CreateCompatibleDC(hdc);
     hBitmap = CreateCompatibleBitmap(hdc, canvas.right - canvas.left, canvas.bottom - canvas.top);
     SelectObject(hMemDC, hBitmap);
@@ -29,7 +36,7 @@ void CreateCanvasBitmap(HWND hWnd, RECT canvas, HDC &hMemDC, HBITMAP &hBitmap) {
     FillRect(hMemDC, &bmpRect, whiteBrush);
     DeleteObject(whiteBrush);
 
-    ReleaseDC(hWnd, hdc);
+    ReleaseDC(hwnd, hdc);
 }
 
 int WINAPI wWinMain(HINSTANCE hInst, HINSTANCE hPrevInst, PWSTR pCmdLine, int nCmdShow){
@@ -46,11 +53,11 @@ int WINAPI wWinMain(HINSTANCE hInst, HINSTANCE hPrevInst, PWSTR pCmdLine, int nC
 
     if(!RegisterClassW(&wc)) return -1;
 
-    HWND hWnd = CreateWindowW(CLASS_NAME, L"WinBrush", WS_OVERLAPPEDWINDOW, CW_USEDEFAULT, CW_USEDEFAULT, CW_USEDEFAULT, CW_USEDEFAULT, NULL, NULL, hInst, NULL);
+    HWND hwnd = CreateWindowW(CLASS_NAME, L"WinBrush", WS_OVERLAPPEDWINDOW, CW_USEDEFAULT, CW_USEDEFAULT, CW_USEDEFAULT, CW_USEDEFAULT, NULL, NULL, hInst, NULL);
 
-    if(hWnd == NULL) return 0;
+    if(hwnd == NULL) return 0;
 
-    ShowWindow(hWnd, SW_MAXIMIZE);
+    ShowWindow(hwnd, SW_MAXIMIZE);
 
     MSG msg = {};
     while (GetMessage(&msg, NULL, 0,0) > 0)
@@ -61,7 +68,7 @@ int WINAPI wWinMain(HINSTANCE hInst, HINSTANCE hPrevInst, PWSTR pCmdLine, int nC
     return 0;
 }
 
-LRESULT CALLBACK WindowProc(HWND hWnd, UINT uMsg, WPARAM wp, LPARAM lp){
+LRESULT CALLBACK WindowProc(HWND hwnd, UINT uMsg, WPARAM wp, LPARAM lp){
     
     static BOOL fDraw = FALSE;
     static POINT ptPrevious;
@@ -77,8 +84,6 @@ LRESULT CALLBACK WindowProc(HWND hWnd, UINT uMsg, WPARAM wp, LPARAM lp){
         COLORREF color;
     };
     static ColorBox boxes[20];
-    static COLORREF colorChoic = RGB(0, 0, 0);
-    static HPEN hPenColor = CreatePen(PS_SOLID, 2, colorChoic);
 
 
     switch (uMsg)
@@ -87,12 +92,15 @@ LRESULT CALLBACK WindowProc(HWND hWnd, UINT uMsg, WPARAM wp, LPARAM lp){
         {
             switch (wp)
             {
-            case  IDM_FILE_NEW:
-                return 0;
-            case   IDM_FILE_OPEN:
-                return 0;
-            case  IDM_FILE_SAVE:
-                return 0;
+                case  IDM_FILE_NEW:
+                    return 0;
+                case   IDM_FILE_OPEN:
+                    return 0;
+                case  IDM_FILE_SAVE:
+                    return 0;
+                case IDB_CUSTOM_COLOR:
+                    CustomColorBox(hwnd);
+                    return 0;
             }
         }
         return 0;
@@ -107,25 +115,25 @@ LRESULT CALLBACK WindowProc(HWND hWnd, UINT uMsg, WPARAM wp, LPARAM lp){
 
         case WM_CREATE:
         {
-            AddMenus(hWnd);
-            AddControls(hWnd);
-
-            GetClientRect(hWnd, &clientRect);
+            AddMenus(hwnd);
+            AddControls(hwnd);
+            
+            GetClientRect(hwnd, &clientRect);
             canvas = {50, 150, clientRect.right - 50, clientRect.bottom - 50};
-            CreateCanvasBitmap(hWnd, canvas, hMemDC, hBitmap);
+            CreateCanvasBitmap(hwnd, canvas, hMemDC, hBitmap);
         }
         return 0;
 
         case WM_SIZE:
         {
-            GetClientRect(hWnd, &clientRect);
+            GetClientRect(hwnd, &clientRect);
             canvas = {50, 150, clientRect.right - 50, clientRect.bottom - 50};
 
             if (hBitmap) DeleteObject(hBitmap);
             if (hMemDC) DeleteDC(hMemDC);
-            CreateCanvasBitmap(hWnd, canvas, hMemDC, hBitmap);
+            CreateCanvasBitmap(hwnd, canvas, hMemDC, hBitmap);
 
-            InvalidateRect(hWnd, NULL, TRUE);
+            InvalidateRect(hwnd, NULL, TRUE);
         }
         return 0;
         
@@ -145,9 +153,9 @@ LRESULT CALLBACK WindowProc(HWND hWnd, UINT uMsg, WPARAM wp, LPARAM lp){
 
                 for (int i = 0; i<20; i++){
                     if(PtInRect(&boxes[i].rect, {x, y})){
-                        colorChoic = boxes[i].color;
+                        colorChoice = boxes[i].color;
                         if (hPenColor) DeleteObject(hPenColor);
-                        hPenColor = CreatePen(PS_SOLID, 2, colorChoic);
+                        hPenColor = CreatePen(PS_SOLID, 2, colorChoice);
                         break;
                     }
                 }
@@ -159,11 +167,12 @@ LRESULT CALLBACK WindowProc(HWND hWnd, UINT uMsg, WPARAM wp, LPARAM lp){
         {
             if(fDraw && (wp & MK_LBUTTON))
             {
+                int x, y;
                 POINT pt = {LOWORD(lp), HIWORD(lp)};
                 if(PtInRect(&canvas, pt))
                 {
-                    int x = pt.x - canvas.left;
-                    int y = pt.y - canvas.top;
+                    x = pt.x - canvas.left;
+                    y = pt.y - canvas.top;
                     
                     SelectObject(hMemDC, hPenColor);
 
@@ -173,11 +182,15 @@ LRESULT CALLBACK WindowProc(HWND hWnd, UINT uMsg, WPARAM wp, LPARAM lp){
                     ptPrevious.x = x;
                     ptPrevious.y = y;
 
-                    InvalidateRect(hWnd, &canvas, FALSE);
+                    InvalidateRect(hwnd, &canvas, FALSE);
                     
                 }
                 else {
+                    x = pt.x - canvas.left;
+                    y = pt.y - canvas.top;
 
+                    ptPrevious.x = x;
+                    ptPrevious.y = y;
                 }
             }
         }
@@ -192,7 +205,7 @@ LRESULT CALLBACK WindowProc(HWND hWnd, UINT uMsg, WPARAM wp, LPARAM lp){
         case WM_PAINT:
         {
             PAINTSTRUCT ps;
-            HDC hdc = BeginPaint(hWnd, &ps);
+            HDC hdc = BeginPaint(hwnd, &ps);
 
             // draw canvas bitmap
             BitBlt(hdc, canvas.left, canvas.top, canvas.right - canvas.left, canvas.bottom - canvas.top, hMemDC, 0, 0, SRCCOPY);
@@ -241,14 +254,14 @@ LRESULT CALLBACK WindowProc(HWND hWnd, UINT uMsg, WPARAM wp, LPARAM lp){
                 DeleteObject(brush);
             }
 
-            EndPaint(hWnd, &ps);
+            EndPaint(hwnd, &ps);
         }
         return 0;
     }
-    return DefWindowProc(hWnd, uMsg, wp, lp);
+    return DefWindowProc(hwnd, uMsg, wp, lp);
 }
 
-void AddMenus(HWND hWnd ){
+void AddMenus(HWND hwnd ){
 
     hMenu = CreateMenu();
     HMENU hFileMenu = CreateMenu();
@@ -258,21 +271,38 @@ void AddMenus(HWND hWnd ){
     AppendMenu (hFileMenu, MF_STRING,   IDM_FILE_OPEN, L"Open");
     AppendMenu(hFileMenu, MF_STRING,  IDM_FILE_SAVE, L"Save");
 
-    SetMenu(hWnd, hMenu);
+    SetMenu(hwnd, hMenu);
 }
 
-void AddControls(HWND hWnd){
+void AddControls(HWND hwnd){
 
     //tools
-    CreateWindowW( L"Button", L"Pencil", WS_VISIBLE | WS_CHILD, 4, 4, 44, 44, hWnd, NULL, NULL, NULL);
-    CreateWindowW( L"Button", L"Fill", WS_VISIBLE | WS_CHILD, 52, 4, 44, 44, hWnd, NULL, NULL, NULL);
-    CreateWindowW( L"Button", L"Text", WS_VISIBLE | WS_CHILD, 100, 4, 44, 44, hWnd, NULL, NULL, NULL);
-    CreateWindowW( L"Button", L"Eraser", WS_VISIBLE | WS_CHILD, 4, 52, 44, 44, hWnd, NULL, NULL, NULL);
-    CreateWindowW( L"Button", L"Color picker", WS_VISIBLE | WS_CHILD, 52, 52, 44, 44, hWnd, NULL, NULL, NULL);
-    CreateWindowW( L"Button", L"Magnifier", WS_VISIBLE | WS_CHILD, 100, 52, 44, 44, hWnd, NULL, NULL, NULL);
+    CreateWindowW( L"Button", L"Pencil", WS_VISIBLE | WS_CHILD, 4, 4, 44, 44, hwnd, NULL, NULL, NULL);
+    CreateWindowW( L"Button", L"Fill", WS_VISIBLE | WS_CHILD, 52, 4, 44, 44, hwnd, NULL, NULL, NULL);
+    CreateWindowW( L"Button", L"Text", WS_VISIBLE | WS_CHILD, 100, 4, 44, 44, hwnd, NULL, NULL, NULL);
+    CreateWindowW( L"Button", L"Eraser", WS_VISIBLE | WS_CHILD, 4, 52, 44, 44, hwnd, NULL, NULL, NULL);
+    CreateWindowW( L"Button", L"Color picker", WS_VISIBLE | WS_CHILD, 52, 52, 44, 44, hwnd, NULL, NULL, NULL);
+    CreateWindowW( L"Button", L"Magnifier", WS_VISIBLE | WS_CHILD, 100, 52, 44, 44, hwnd, NULL, NULL, NULL);
 
-    CreateWindowW( L"Button", L"edit color", WS_VISIBLE | WS_CHILD, 398, 4, 44, 44, hWnd, NULL, NULL, NULL);
+    CreateWindowW( L"Button", L"edit color", WS_VISIBLE | WS_CHILD, 398, 4, 44, 44, hwnd, (HMENU)IDB_CUSTOM_COLOR, NULL, NULL);
 
-    CreateWindowW( L"STATIC", L"px", WS_VISIBLE | WS_CHILD | WS_BORDER, 454, 4, 20, 20, hWnd, NULL, NULL, NULL);
-    CreateWindowW( L"EDIT", L"1", WS_VISIBLE | WS_CHILD | WS_BORDER, 474, 4, 100, 20, hWnd, NULL, NULL, NULL);
+    CreateWindowW( L"STATIC", L"px", WS_VISIBLE | WS_CHILD | WS_BORDER, 454, 4, 20, 20, hwnd, NULL, NULL, NULL);
+    CreateWindowW( L"EDIT", L"1", WS_VISIBLE | WS_CHILD | WS_BORDER, 474, 4, 100, 20, hwnd, NULL, NULL, NULL);
+}
+
+
+void CustomColorBox(HWND hwnd){
+    CHOOSECOLOR cc = {};
+    cc.lStructSize = sizeof(cc);
+    cc.hwndOwner = hwnd;
+    cc.lpCustColors = customColors;
+    cc.rgbResult = colorChoice;
+    cc.Flags = CC_FULLOPEN | CC_RGBINIT;
+
+    if (ChooseColor(&cc))
+    {
+        colorChoice = cc.rgbResult;
+        if (hPenColor) DeleteObject(hPenColor);
+        hPenColor = CreatePen(PS_SOLID, 2, colorChoice);
+    }
 }
