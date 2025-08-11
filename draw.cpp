@@ -6,10 +6,12 @@
 #define  IDM_FILE_OPEN 2
 #define  IDM_FILE_SAVE 3 
 #define  IDB_CUSTOM_COLOR 4
+#define  ID_SLIDER 5
 
 #include <windows.h>
 #include <windowsx.h>
 #include <commdlg.h>
+#include <commctrl.h>
 
 
 LRESULT CALLBACK WindowProc(HWND hwnd, UINT uMsg, WPARAM wp, LPARAM lp);
@@ -19,10 +21,13 @@ void AddControls(HWND);
 void CustomColorBox(HWND);
 
 HMENU hMenu;
+static HWND hSlider;
 
+static int penWidth = 1;
 static COLORREF colorChoice = RGB(0, 0, 0);
 static COLORREF customColors[16];
-static HPEN hPenColor = CreatePen(PS_SOLID, 2, colorChoice);
+static HPEN hPenColor = CreatePen(PS_SOLID, penWidth, colorChoice);
+
 
 
 void CreateCanvasBitmap(HWND hwnd, RECT canvas, HDC &hMemDC, HBITMAP &hBitmap) {
@@ -121,6 +126,10 @@ LRESULT CALLBACK WindowProc(HWND hwnd, UINT uMsg, WPARAM wp, LPARAM lp){
             GetClientRect(hwnd, &clientRect);
             canvas = {50, 150, clientRect.right - 50, clientRect.bottom - 50};
             CreateCanvasBitmap(hwnd, canvas, hMemDC, hBitmap);
+        
+            SendMessage(hSlider, TBM_SETRANGE, TRUE, MAKELONG(1, 20));
+            SendMessage(hSlider, TBM_SETPOS, TRUE, penWidth);
+            SendMessage(hSlider, TBM_SETTICFREQ, 1, 0);
         }
         return 0;
 
@@ -155,7 +164,7 @@ LRESULT CALLBACK WindowProc(HWND hwnd, UINT uMsg, WPARAM wp, LPARAM lp){
                     if(PtInRect(&boxes[i].rect, {x, y})){
                         colorChoice = boxes[i].color;
                         if (hPenColor) DeleteObject(hPenColor);
-                        hPenColor = CreatePen(PS_SOLID, 2, colorChoice);
+                        hPenColor = CreatePen(PS_SOLID, penWidth, colorChoice);
                         break;
                     }
                 }
@@ -200,6 +209,13 @@ LRESULT CALLBACK WindowProc(HWND hwnd, UINT uMsg, WPARAM wp, LPARAM lp){
         {
             fDraw = FALSE;
         }
+        return 0;
+
+        case WM_HSCROLL:
+            if ((HWND)lp == hSlider) {
+                penWidth = SendMessage(hSlider, TBM_GETPOS, 0, 0);
+                InvalidateRect(hwnd, NULL, FALSE);
+            }
         return 0;
 
         case WM_PAINT:
@@ -283,11 +299,10 @@ void AddControls(HWND hwnd){
     CreateWindowW( L"Button", L"Eraser", WS_VISIBLE | WS_CHILD, 4, 52, 44, 44, hwnd, NULL, NULL, NULL);
     CreateWindowW( L"Button", L"Color picker", WS_VISIBLE | WS_CHILD, 52, 52, 44, 44, hwnd, NULL, NULL, NULL);
     CreateWindowW( L"Button", L"Magnifier", WS_VISIBLE | WS_CHILD, 100, 52, 44, 44, hwnd, NULL, NULL, NULL);
-
+    
     CreateWindowW( L"Button", L"edit color", WS_VISIBLE | WS_CHILD, 398, 4, 44, 44, hwnd, (HMENU)IDB_CUSTOM_COLOR, NULL, NULL);
-
-    CreateWindowW( L"STATIC", L"px", WS_VISIBLE | WS_CHILD | WS_BORDER, 454, 4, 20, 20, hwnd, NULL, NULL, NULL);
-    CreateWindowW( L"EDIT", L"1", WS_VISIBLE | WS_CHILD | WS_BORDER, 474, 4, 100, 20, hwnd, NULL, NULL, NULL);
+    
+    hSlider = CreateWindowEx(0, TRACKBAR_CLASS, L"", WS_CHILD | WS_VISIBLE | TBS_AUTOTICKS, 454, 4, 200, 30, hwnd, (HMENU)ID_SLIDER, NULL, NULL);
 }
 
 
@@ -303,6 +318,6 @@ void CustomColorBox(HWND hwnd){
     {
         colorChoice = cc.rgbResult;
         if (hPenColor) DeleteObject(hPenColor);
-        hPenColor = CreatePen(PS_SOLID, 2, colorChoice);
+        hPenColor = CreatePen(PS_SOLID, penWidth, colorChoice);
     }
 }
