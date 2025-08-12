@@ -19,6 +19,8 @@ LRESULT CALLBACK WindowProc(HWND hwnd, UINT uMsg, WPARAM wp, LPARAM lp);
 void AddMenus(HWND);
 void AddControls(HWND);
 void CustomColorBox(HWND);
+void drawing (HWND, RECT, POINT, HDC, POINT&);
+
 
 HMENU hMenu;
 static HWND hSlider;
@@ -154,6 +156,8 @@ LRESULT CALLBACK WindowProc(HWND hwnd, UINT uMsg, WPARAM wp, LPARAM lp){
                 fDraw = TRUE;
                 ptPrevious.x = pt.x - canvas.left;
                 ptPrevious.y = pt.y - canvas.top;
+
+                drawing(hwnd, canvas, pt, hMemDC, ptPrevious);
             }
             else
             {
@@ -176,31 +180,9 @@ LRESULT CALLBACK WindowProc(HWND hwnd, UINT uMsg, WPARAM wp, LPARAM lp){
         {
             if(fDraw && (wp & MK_LBUTTON))
             {
-                int x, y;
                 POINT pt = {LOWORD(lp), HIWORD(lp)};
-                if(PtInRect(&canvas, pt))
-                {
-                    x = pt.x - canvas.left;
-                    y = pt.y - canvas.top;
-                    
-                    SelectObject(hMemDC, hPenColor);
+                drawing(hwnd, canvas, pt, hMemDC, ptPrevious);
 
-                    MoveToEx(hMemDC, ptPrevious.x, ptPrevious.y, NULL);
-                    LineTo(hMemDC, x, y);
-
-                    ptPrevious.x = x;
-                    ptPrevious.y = y;
-
-                    InvalidateRect(hwnd, &canvas, FALSE);
-                    
-                }
-                else {
-                    x = pt.x - canvas.left;
-                    y = pt.y - canvas.top;
-
-                    ptPrevious.x = x;
-                    ptPrevious.y = y;
-                }
             }
         }
         return 0;
@@ -212,10 +194,12 @@ LRESULT CALLBACK WindowProc(HWND hwnd, UINT uMsg, WPARAM wp, LPARAM lp){
         return 0;
 
         case WM_HSCROLL:
+        {
             if ((HWND)lp == hSlider) {
                 penWidth = SendMessage(hSlider, TBM_GETPOS, 0, 0);
                 InvalidateRect(hwnd, NULL, FALSE);
             }
+        }
         return 0;
 
         case WM_PAINT:
@@ -320,4 +304,23 @@ void CustomColorBox(HWND hwnd){
         if (hPenColor) DeleteObject(hPenColor);
         hPenColor = CreatePen(PS_SOLID, penWidth, colorChoice);
     }
+}
+
+void drawing (HWND hwnd, RECT canvas, POINT pt, HDC hMemDC, POINT& ptPrevious){
+    int x, y;
+
+    x = pt.x - canvas.left;
+    y = pt.y - canvas.top;
+    if(PtInRect(&canvas, pt))
+    {
+        SelectObject(hMemDC, hPenColor);
+
+        MoveToEx(hMemDC, ptPrevious.x, ptPrevious.y, NULL);
+        LineTo(hMemDC, x, y);
+
+        InvalidateRect(hwnd, &canvas, FALSE);
+        
+    }
+    ptPrevious.x = x;
+    ptPrevious.y = y;
 }
