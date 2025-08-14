@@ -2,11 +2,12 @@
 #define UNICODE
 #endif
 
-#define  IDM_FILE_NEW 1
-#define  IDM_FILE_OPEN 2
-#define  IDM_FILE_SAVE 3 
-#define  IDB_CUSTOM_COLOR 4
+#define  ID_MENU_NEW 1
+#define  ID_MENU_OPEN 2
+#define  ID_MENU_SAVE 3 
+#define  ID_BTN_CUSTOM_COLOR 4
 #define  ID_SLIDER 5
+#define ID_BTN_RECTANGLE 6
 
 #include <windows.h>
 #include <windowsx.h>
@@ -23,7 +24,7 @@ void drawing (HWND, RECT, POINT, HDC, POINT&);
 
 
 HMENU hMenu;
-static HWND hSlider;
+static HWND hSlider, hbtnRect;
 
 static int penWidth = 1;
 static COLORREF colorChoice = RGB(0, 0, 0);
@@ -99,13 +100,13 @@ LRESULT CALLBACK WindowProc(HWND hwnd, UINT uMsg, WPARAM wp, LPARAM lp){
         {
             switch (wp)
             {
-                case  IDM_FILE_NEW:
+                case  ID_MENU_NEW:
                     return 0;
-                case   IDM_FILE_OPEN:
+                case   ID_MENU_OPEN:
                     return 0;
-                case  IDM_FILE_SAVE:
+                case  ID_MENU_SAVE:
                     return 0;
-                case IDB_CUSTOM_COLOR:
+                case ID_BTN_CUSTOM_COLOR:
                     CustomColorBox(hwnd);
                     return 0;
             }
@@ -224,6 +225,9 @@ LRESULT CALLBACK WindowProc(HWND hwnd, UINT uMsg, WPARAM wp, LPARAM lp){
             MoveToEx(hdc, 448, 6, NULL);
             LineTo(hdc, 448, 96);
 
+            MoveToEx(hdc, 660, 6, NULL);
+            LineTo(hdc, 660, 96);
+
             //basic colors
             COLORREF basicColor[]={
                 RGB(0, 0, 0),   RGB(127, 127, 127),   RGB(136, 0, 21),
@@ -257,6 +261,31 @@ LRESULT CALLBACK WindowProc(HWND hwnd, UINT uMsg, WPARAM wp, LPARAM lp){
             EndPaint(hwnd, &ps);
         }
         return 0;
+
+        case WM_DRAWITEM:
+        {
+            LPDRAWITEMSTRUCT drawInfo = (LPDRAWITEMSTRUCT)lp;
+
+            if(drawInfo->CtlID == ID_BTN_RECTANGLE){
+                HDC hdc = drawInfo->hDC;
+                RECT rc = drawInfo->rcItem;
+                
+                
+                COLORREF bgColor = RGB(240, 240, 240); 
+                if (drawInfo->itemState & ODS_SELECTED) bgColor = RGB(200, 200, 200);
+                if (drawInfo->itemState & ODS_DISABLED) bgColor = RGB(210, 210, 210);
+
+                HBRUSH brush = CreateSolidBrush(bgColor);
+                FillRect(drawInfo->hDC, &drawInfo->rcItem, brush);
+                DeleteObject(brush);
+
+                Rectangle(hdc, rc.left+5, rc.top+10, rc.right - 5, rc.bottom - 10);
+                
+            }
+            return TRUE;
+        }
+        
+        return 0;
     }
     return DefWindowProc(hwnd, uMsg, wp, lp);
 }
@@ -267,9 +296,9 @@ void AddMenus(HWND hwnd ){
     HMENU hFileMenu = CreateMenu();
 
     AppendMenu(hMenu, MF_POPUP, (UINT_PTR)hFileMenu, L"File");
-    AppendMenu (hFileMenu, MF_STRING,  IDM_FILE_NEW, L"New");
-    AppendMenu (hFileMenu, MF_STRING,   IDM_FILE_OPEN, L"Open");
-    AppendMenu(hFileMenu, MF_STRING,  IDM_FILE_SAVE, L"Save");
+    AppendMenu (hFileMenu, MF_STRING,  ID_MENU_NEW, L"New");
+    AppendMenu (hFileMenu, MF_STRING,   ID_MENU_OPEN, L"Open");
+    AppendMenu(hFileMenu, MF_STRING,  ID_MENU_SAVE, L"Save");
 
     SetMenu(hwnd, hMenu);
 }
@@ -284,9 +313,13 @@ void AddControls(HWND hwnd){
     CreateWindowW( L"Button", L"Color picker", WS_VISIBLE | WS_CHILD, 52, 52, 44, 44, hwnd, NULL, NULL, NULL);
     CreateWindowW( L"Button", L"Magnifier", WS_VISIBLE | WS_CHILD, 100, 52, 44, 44, hwnd, NULL, NULL, NULL);
     
-    CreateWindowW( L"Button", L"edit color", WS_VISIBLE | WS_CHILD, 398, 4, 44, 44, hwnd, (HMENU)IDB_CUSTOM_COLOR, NULL, NULL);
+    CreateWindowW( L"Button", L"edit color", WS_VISIBLE | WS_CHILD, 398, 4, 44, 44, hwnd, (HMENU)ID_BTN_CUSTOM_COLOR, NULL, NULL);
     
     hSlider = CreateWindowEx(0, TRACKBAR_CLASS, L"", WS_CHILD | WS_VISIBLE | TBS_AUTOTICKS, 454, 4, 200, 30, hwnd, (HMENU)ID_SLIDER, NULL, NULL);
+
+    //custom controls
+    hbtnRect = CreateWindowW(L"Button", L"", WS_VISIBLE | WS_CHILD | WS_BORDER |  BS_OWNERDRAW, 666, 4, 44, 44, hwnd, (HMENU)ID_BTN_RECTANGLE, NULL, NULL);
+
 }
 
 
@@ -324,3 +357,4 @@ void drawing (HWND hwnd, RECT canvas, POINT pt, HDC hMemDC, POINT& ptPrevious){
     ptPrevious.x = x;
     ptPrevious.y = y;
 }
+
