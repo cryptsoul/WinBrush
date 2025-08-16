@@ -11,7 +11,9 @@ LRESULT CALLBACK WindowProc(HWND hwnd, UINT uMsg, WPARAM wp, LPARAM lp);
 void AddMenus(HWND);
 void AddControls(HWND);
 void CustomColorBox(HWND);
-void drawingTools (HWND, RECT, POINT, HDC, POINT&);
+void drawing (HWND, RECT, POINT, HDC, POINT&);
+void drawPreviewShape(HDC, RECT);
+void CreateCanvasBitmap(HWND, RECT, HDC&, HBITMAP&, HDC&, HBITMAP&);
 
 enum ToolType{
     TOOL_PENCIL,
@@ -53,23 +55,9 @@ static COLORREF colorChoice = RGB(0, 0, 0);
 static COLORREF customColors[16];
 static HPEN hPenColor = CreatePen(PS_SOLID, penWidth, colorChoice);
 
-int ptStart_X, ptStart_Y;
+static POINT previewStart, previewEnd;
 
 ToolType currentTool = TOOL_PENCIL;
-
-void CreateCanvasBitmap(HWND hwnd, RECT canvas, HDC &hMemDC, HBITMAP &hBitmap) {
-    HDC hdc = GetDC(hwnd);
-    hMemDC = CreateCompatibleDC(hdc);
-    hBitmap = CreateCompatibleBitmap(hdc, canvas.right - canvas.left, canvas.bottom - canvas.top);
-    SelectObject(hMemDC, hBitmap);
-
-    HBRUSH whiteBrush = CreateSolidBrush(RGB(255, 255, 255));
-    RECT bmpRect = {0, 0, canvas.right - canvas.left, canvas.bottom - canvas.top};
-    FillRect(hMemDC, &bmpRect, whiteBrush);
-    DeleteObject(whiteBrush);
-
-    ReleaseDC(hwnd, hdc);
-}
 
 int WINAPI wWinMain(HINSTANCE hInst, HINSTANCE hPrevInst, PWSTR pCmdLine, int nCmdShow){
 
@@ -105,8 +93,8 @@ LRESULT CALLBACK WindowProc(HWND hwnd, UINT uMsg, WPARAM wp, LPARAM lp){
     static BOOL fDraw = FALSE;
     static POINT ptPrevious;
 
-    static HDC hMemDC = NULL;
-    static HBITMAP hBitmap = NULL;
+    static HDC hMemDC, hPreviewDC;
+    static HBITMAP hBitmap, hPreviewBitmap;
     
     static RECT clientRect;
     static RECT canvas;
@@ -188,6 +176,8 @@ LRESULT CALLBACK WindowProc(HWND hwnd, UINT uMsg, WPARAM wp, LPARAM lp){
         {
             if (hBitmap) DeleteObject(hBitmap);
             if (hMemDC) DeleteDC(hMemDC);
+            if (hPreviewBitmap) DeleteObject(hPreviewBitmap);
+            if (hPreviewDC) DeleteDC(hPreviewDC);
             PostQuitMessage(0);
         }
         return 0;
@@ -199,10 +189,14 @@ LRESULT CALLBACK WindowProc(HWND hwnd, UINT uMsg, WPARAM wp, LPARAM lp){
             
             GetClientRect(hwnd, &clientRect);
             canvas = {50, 150, clientRect.right - 50, clientRect.bottom - 50};
-            CreateCanvasBitmap(hwnd, canvas, hMemDC, hBitmap);
-        
+
+            CreateCanvasBitmap(hwnd, canvas, hMemDC, hBitmap, hPreviewDC, hPreviewBitmap);
             SendMessage(hSlider, TBM_SETRANGE, TRUE, MAKELONG(1, 20));
             SendMessage(hSlider, TBM_SETPOS, TRUE, penWidth);
+            
+            if (hPenColor) DeleteObject(hPenColor);
+            hPenColor = CreatePen(PS_SOLID, penWidth, colorChoice);
+            
             SendMessage(hSlider, TBM_SETTICFREQ, 1, 0);
         }
         return 0;
@@ -214,8 +208,7 @@ LRESULT CALLBACK WindowProc(HWND hwnd, UINT uMsg, WPARAM wp, LPARAM lp){
 
             if (hBitmap) DeleteObject(hBitmap);
             if (hMemDC) DeleteDC(hMemDC);
-            CreateCanvasBitmap(hwnd, canvas, hMemDC, hBitmap);
-
+            CreateCanvasBitmap(hwnd, canvas, hMemDC, hBitmap, hPreviewDC, hPreviewBitmap);
             InvalidateRect(hwnd, NULL, TRUE);
         }
         return 0;
@@ -228,11 +221,10 @@ LRESULT CALLBACK WindowProc(HWND hwnd, UINT uMsg, WPARAM wp, LPARAM lp){
                 fDraw = TRUE;
                 ptPrevious.x = pt.x - canvas.left;
                 ptPrevious.y = pt.y - canvas.top;
-                
-                ptStart_X = pt.x;
-                ptStart_Y = pt.y;
 
-                drawingTools(hwnd, canvas, pt, hMemDC, ptPrevious);
+                previewStart = pt;
+
+                drawing(hwnd, canvas, pt, hMemDC, ptPrevious);
             }
             else
             {
@@ -255,8 +247,14 @@ LRESULT CALLBACK WindowProc(HWND hwnd, UINT uMsg, WPARAM wp, LPARAM lp){
             if(fDraw && (wp & MK_LBUTTON))
             {
                 POINT pt = {LOWORD(lp), HIWORD(lp)};
-                drawingTools(hwnd, canvas, pt, hMemDC, ptPrevious);
 
+                if(PtInRect(&canvas, pt)){
+                    previewEnd = pt;
+                    InvalidateRect(hwnd, NULL, FALSE);
+                }
+
+                drawing(hwnd, canvas, pt, hMemDC, ptPrevious);
+                
             }
         }
         return 0;
@@ -264,8 +262,6 @@ LRESULT CALLBACK WindowProc(HWND hwnd, UINT uMsg, WPARAM wp, LPARAM lp){
         case WM_LBUTTONUP:
         {
             fDraw = FALSE;
-
-
         }
         return 0;
 
@@ -273,6 +269,8 @@ LRESULT CALLBACK WindowProc(HWND hwnd, UINT uMsg, WPARAM wp, LPARAM lp){
         {
             if ((HWND)lp == hSlider) {
                 penWidth = SendMessage(hSlider, TBM_GETPOS, 0, 0);
+                if (hPenColor) DeleteObject(hPenColor);
+                hPenColor = CreatePen(PS_SOLID, penWidth, colorChoice);
                 InvalidateRect(hwnd, NULL, FALSE);
             }
         }
@@ -283,8 +281,9 @@ LRESULT CALLBACK WindowProc(HWND hwnd, UINT uMsg, WPARAM wp, LPARAM lp){
             PAINTSTRUCT ps;
             HDC hdc = BeginPaint(hwnd, &ps);
 
-            // draw canvas bitmap
+            // draw canvas bitmap and preview bitmap
             BitBlt(hdc, canvas.left, canvas.top, canvas.right - canvas.left, canvas.bottom - canvas.top, hMemDC, 0, 0, SRCCOPY);
+            TransparentBlt(hdc, canvas.left, canvas.top, canvas.right - canvas.left, canvas.bottom - canvas.top, hPreviewDC, 0, 0, canvas.right - canvas.left, canvas.bottom - canvas.top, RGB(255,255,255));
 
             //toolbar 
             RECT toolbar = {0, 0, clientRect.right, 100};
@@ -338,6 +337,7 @@ LRESULT CALLBACK WindowProc(HWND hwnd, UINT uMsg, WPARAM wp, LPARAM lp){
                 DeleteObject(basicColorBrush);
             }
 
+            drawPreviewShape( hdc, canvas);
             EndPaint(hwnd, &ps);
         }
         return 0;
@@ -368,6 +368,32 @@ LRESULT CALLBACK WindowProc(HWND hwnd, UINT uMsg, WPARAM wp, LPARAM lp){
         return 0;
     }
     return DefWindowProc(hwnd, uMsg, wp, lp);
+}
+
+void CreateCanvasBitmap(HWND hwnd, RECT canvas, HDC &hMemDC, HBITMAP &hBitmap, HDC &hPreviewDC, HBITMAP &hPreviewBitmap) {
+    HDC hdc = GetDC(hwnd);
+
+    int width  = canvas.right - canvas.left;
+    int height = canvas.bottom - canvas.top;
+
+    //Create permanent memory DC + bitma and fill with white background
+    hMemDC = CreateCompatibleDC(hdc);
+    hBitmap = CreateCompatibleBitmap(hdc, width, height);
+    SelectObject(hMemDC, hBitmap);
+
+    HBRUSH whiteBrush = CreateSolidBrush(RGB(255, 255, 255));
+    RECT bmpRect = {0, 0, width, height};
+    FillRect(hMemDC, &bmpRect, whiteBrush);
+
+    //Create preview DC + bitma and fill with transparent background (white)
+    hPreviewDC = CreateCompatibleDC(hdc);
+    hPreviewBitmap = CreateCompatibleBitmap(hdc, width, height);
+    SelectObject(hPreviewDC, hPreviewBitmap);
+
+    FillRect(hPreviewDC, &bmpRect, whiteBrush);
+   
+    DeleteObject(whiteBrush);
+    ReleaseDC(hwnd, hdc);
 }
 
 void AddMenus(HWND hwnd ){
@@ -417,7 +443,7 @@ void CustomColorBox(HWND hwnd){
     }
 }
 
-void drawingTools (HWND hwnd, RECT canvas, POINT pt, HDC hMemDC, POINT& ptPrevious){
+void drawing (HWND hwnd, RECT canvas, POINT pt, HDC hMemDC, POINT& ptPrevious){
     int x, y;
 
     x = pt.x - canvas.left;
@@ -445,18 +471,29 @@ void drawingTools (HWND hwnd, RECT canvas, POINT pt, HDC hMemDC, POINT& ptPrevio
             break;
             case SHAPE_RECTANGLE:
             {
-                int x1 = ptStart_X - canvas.left;
-                int y1 = ptStart_Y - canvas.top;
-                int x2 = pt.x - canvas.left;
-                int y2 = pt.y - canvas.top;
 
-                SelectObject(hMemDC, hPenColor);
-                Rectangle(hMemDC, x1, y1, x2, y2);
-                InvalidateRect(hwnd, &canvas, FALSE);
             }
             break;
         }
     }
     ptPrevious.x = x;
     ptPrevious.y = y;
+}
+
+void drawPreviewShape(HDC hdc, RECT canvas){
+
+    int x1 = previewStart.x;
+    int y1 = previewStart.y;
+    int x2 = previewEnd.x;
+    int y2 = previewEnd.y;
+    
+    SelectObject(hdc, hPenColor);
+    switch (currentTool){
+        case SHAPE_RECTANGLE:
+        {
+            Rectangle(hdc, x1, y1, x2, y2);
+        } 
+        break;
+    }
+
 }
