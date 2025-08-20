@@ -54,7 +54,7 @@ static COLORREF colorChoice = RGB(0, 0, 0);
 static COLORREF customColors[16];
 static HPEN hPenColor = CreatePen(PS_SOLID, penWidth, colorChoice);
 
-static POINT pStart, pEnd;
+static POINT pStart;
 
 ToolType currentTool = TOOL_PENCIL;
 
@@ -256,7 +256,6 @@ LRESULT CALLBACK WindowProc(HWND hwnd, UINT uMsg, WPARAM wp, LPARAM lp){
             if(fDraw && (wp & MK_LBUTTON))
             {
                 if(PtInRect(&canvas, pt)){
-                    pEnd = pt;
                     InvalidateRect(hwnd, &canvas, FALSE);
                 }
                 drawing(hwnd, canvas, pt, hPreviewDC, ptPrevious);
@@ -266,9 +265,6 @@ LRESULT CALLBACK WindowProc(HWND hwnd, UINT uMsg, WPARAM wp, LPARAM lp){
         case WM_LBUTTONUP:
         {
             fDraw = FALSE;
-
-
-            
             BitBlt(hPermanentDC, 0, 0, canvas.right - canvas.left, canvas.bottom - canvas.top, hPreviewDC, 0, 0, SRCCOPY);
 
             return 0;
@@ -374,12 +370,16 @@ LRESULT CALLBACK WindowProc(HWND hwnd, UINT uMsg, WPARAM wp, LPARAM lp){
                     Rectangle(hdc, rc.left+5, rc.top+10, rc.right - 5, rc.bottom - 10);
                 }
                 break;
-
                 case ID_BTN_ELLIPSE:
                 {
                     Ellipse(hdc, rc.left+5, rc.top+10, rc.right - 5, rc.bottom - 10);
                 }
                 break;
+                case ID_BTN_LINE:
+                {
+                    MoveToEx(hdc, rc.left+5, rc.top+10, NULL);
+                    LineTo(hdc, rc.right - 5, rc.bottom - 10);
+                }
             }
         }
         return 0;
@@ -443,6 +443,7 @@ void AddControls(HWND hwnd){
     //custom controls
     CreateWindowW(L"Button", L"", WS_VISIBLE | WS_CHILD | WS_BORDER |  BS_OWNERDRAW, 666, 4, 44, 44, hwnd, (HMENU)ID_BTN_RECTANGLE, NULL, NULL);
     CreateWindowW(L"Button", L"", WS_VISIBLE | WS_CHILD | WS_BORDER |  BS_OWNERDRAW, 714, 4, 44, 44, hwnd, (HMENU)ID_BTN_ELLIPSE, NULL, NULL);
+    CreateWindowW(L"Button", L"", WS_VISIBLE | WS_CHILD | WS_BORDER |  BS_OWNERDRAW, 762, 4, 44, 44, hwnd, (HMENU)ID_BTN_LINE, NULL, NULL);
 }
 
 void CustomColorBox(HWND hwnd){
@@ -462,12 +463,12 @@ void CustomColorBox(HWND hwnd){
 }
 
 void drawing (HWND hwnd, RECT canvas, POINT pt, HDC hdc, POINT& ptPrevious){
-    int mouse_x, mouse_y;
-        
-    int x1, y1, x2, y2;
+    int mouse_x, mouse_y, x1, y1, x2, y2;
 
     mouse_x = pt.x - canvas.left;
     mouse_y = pt.y - canvas.top;
+    
+    
 
     x1 = pStart.x - canvas.left;
     y1 = pStart.y - canvas.top;
@@ -481,7 +482,6 @@ void drawing (HWND hwnd, RECT canvas, POINT pt, HDC hdc, POINT& ptPrevious){
         switch (currentTool){
             case TOOL_PENCIL:
             {
-
                 MoveToEx(hdc, ptPrevious.x, ptPrevious.y, NULL);
                 LineTo(hdc, mouse_x, mouse_y);
                 InvalidateRect(hwnd, &canvas, FALSE);
@@ -502,7 +502,19 @@ void drawing (HWND hwnd, RECT canvas, POINT pt, HDC hdc, POINT& ptPrevious){
                 BitBlt(hPreviewDC, 0, 0, canvas.right - canvas.left, canvas.bottom - canvas.top, hPermanentDC, 0, 0, SRCCOPY);
                 InvalidateRect(hwnd, &canvas, FALSE);
 
-                Rectangle(hdc, x1, y1, x2, y2);
+                if(GetAsyncKeyState(VK_SHIFT)&0x8000){
+                    int width = x2 - x1;
+                    int height = y2 - y1;
+
+                    int side = (abs(width) < abs(height)) ? abs(width) : abs (height);
+
+                    if(width < 0) x2 = x1 - side;
+                    else x2 = x1 + side;
+
+                    if(height < 0) y2 = y1 - side;
+                    else y2 = y1 + side;
+                }
+                Rectangle(hdc, x1, y1, x2, y2); 
             }
             break;
             case SHAPE_ELLIPSE:
@@ -510,8 +522,30 @@ void drawing (HWND hwnd, RECT canvas, POINT pt, HDC hdc, POINT& ptPrevious){
                 BitBlt(hPreviewDC, 0, 0, canvas.right - canvas.left, canvas.bottom - canvas.top, hPermanentDC, 0, 0, SRCCOPY);
                 InvalidateRect(hwnd, &canvas, FALSE);
 
+                if(GetAsyncKeyState(VK_SHIFT)&0x8000){
+                    int width = x2 - x1;
+                    int height = y2 - y1;
+
+                    int side = (abs(width) < abs(height)) ? abs(width) : abs (height);
+
+                    if(width < 0) x2 = x1 - side;
+                    else x2 = x1 + side;
+
+                    if(height < 0) y2 = y1 - side;
+                    else y2 = y1 + side;
+                }
                 Ellipse(hdc, x1, y1, x2, y2);
             }
+            break;
+            case SHAPE_LINE:
+            {
+                BitBlt(hPreviewDC, 0, 0, canvas.right - canvas.left, canvas.bottom - canvas.top, hPermanentDC, 0, 0, SRCCOPY);
+                InvalidateRect(hwnd, &canvas, FALSE);
+
+                MoveToEx(hdc, x1, y1, NULL);
+                LineTo(hdc, x2, y2);
+            }
+            break;
         }
     }
     ptPrevious.x = mouse_x;
