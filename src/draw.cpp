@@ -6,7 +6,9 @@
 #include <windowsx.h>
 #include <commdlg.h>
 #include <commctrl.h>
-
+#include <fstream>
+#include <gdiplus.h>
+#include <string>
 
 enum ToolType{
     TOOL_PENCIL,
@@ -22,6 +24,7 @@ enum ToolType{
 
     TOOL_NONE
 };
+ToolType currentTool = TOOL_PENCIL;
 
 enum MenuAndButtonIDs {
     ID_MENU_NEW = 1,
@@ -40,15 +43,19 @@ enum MenuAndButtonIDs {
     ID_BTN_MAGNIFIER
 };
 
-enum DrawTarget {
-    BITMAP_PREVIEW,
-    BITMAP_PERMANENT,
-    BITMAP_WINDOW
+struct Theme{
+    Gdiplus::Bitmap* pencilIcon;
+    Gdiplus::Bitmap* eraserIcon;
+    Gdiplus::Bitmap* fillIcon;
+    Gdiplus::Bitmap* textIcon;
+    Gdiplus::Bitmap* colorPickerIcon;
+    Gdiplus::Bitmap* magnifierIcon;
+    Gdiplus::Bitmap* customColorIcon;
 };
+Theme currentTheme;
 
 HMENU hMenu;
 static HWND hSlider;
-
 static int penWidth = 1;
 static COLORREF colorChoice = RGB(0, 0, 0);
 static COLORREF customColors[16];
@@ -56,11 +63,11 @@ static HPEN hPenColor = CreatePen(PS_SOLID, penWidth, colorChoice);
 
 static POINT pStart;
 
-ToolType currentTool = TOOL_PENCIL;
 
 static HDC hPermanentDC, hPreviewDC;
 static HBITMAP hBitmap, hPreviewBitmap;
 
+ULONG_PTR gdiplusToken;
 
 LRESULT CALLBACK WindowProc(HWND hwnd, UINT uMsg, WPARAM wp, LPARAM lp);
 void AddMenus(HWND);
@@ -68,8 +75,12 @@ void AddControls(HWND);
 void CustomColorBox(HWND);
 void drawing (HWND, RECT, POINT, HDC, POINT&);
 void CreateCanvasBitmap(HWND, RECT, HDC&, HBITMAP&, HDC&, HBITMAP&);
+void LoadThemes();
 
 int WINAPI wWinMain(HINSTANCE hInst, HINSTANCE hPrevInst, PWSTR pCmdLine, int nCmdShow){
+
+    Gdiplus::GdiplusStartupInput gdiplusStartupInput;
+    Gdiplus::GdiplusStartup(&gdiplusToken, &gdiplusStartupInput,NULL);
 
     const wchar_t CLASS_NAME[] = L"Main";
 
@@ -89,12 +100,16 @@ int WINAPI wWinMain(HINSTANCE hInst, HINSTANCE hPrevInst, PWSTR pCmdLine, int nC
 
     ShowWindow(hwnd, SW_MAXIMIZE);
 
+
+
     MSG msg = {};
     while (GetMessage(&msg, NULL, 0,0) > 0)
     {
         TranslateMessage(&msg);
         DispatchMessage(&msg);
     }
+    Gdiplus::GdiplusShutdown(gdiplusToken);
+    
     return 0;
 }
 
@@ -193,7 +208,8 @@ LRESULT CALLBACK WindowProc(HWND hwnd, UINT uMsg, WPARAM wp, LPARAM lp){
         {
             AddMenus(hwnd);
             AddControls(hwnd);
-            
+            LoadThemes();
+
             GetClientRect(hwnd, &clientRect);
             canvas = {50, 150, clientRect.right - 50, clientRect.bottom - 50};
 
@@ -289,6 +305,7 @@ LRESULT CALLBACK WindowProc(HWND hwnd, UINT uMsg, WPARAM wp, LPARAM lp){
         case WM_PAINT:
         {
             PAINTSTRUCT ps;
+
             HDC hdc = BeginPaint(hwnd, &ps);
 
             // draw canvas bitmap (preview bitmap)
@@ -355,7 +372,9 @@ LRESULT CALLBACK WindowProc(HWND hwnd, UINT uMsg, WPARAM wp, LPARAM lp){
 
             HDC hdc = drawInfo->hDC;
             RECT rc = drawInfo->rcItem;
-            
+            Gdiplus::Graphics graphics(hdc);
+
+
             COLORREF bgColor = RGB(240, 240, 240); 
             if (drawInfo->itemState & ODS_SELECTED) bgColor = RGB(200, 200, 200);
             if (drawInfo->itemState & ODS_DISABLED) bgColor = RGB(210, 210, 210);
@@ -380,6 +399,42 @@ LRESULT CALLBACK WindowProc(HWND hwnd, UINT uMsg, WPARAM wp, LPARAM lp){
                     MoveToEx(hdc, rc.left+5, rc.top+10, NULL);
                     LineTo(hdc, rc.right - 5, rc.bottom - 10);
                 }
+                break;
+                case ID_BTN_PENCIL:
+                {
+                    graphics.DrawImage(currentTheme.pencilIcon, 5, 5, rc.right - rc.left - 10, rc.bottom - rc.top - 10);
+                }
+                break;
+                case ID_BTN_ERASER:
+                {
+                    graphics.DrawImage(currentTheme.eraserIcon, 5, 5, rc.right - rc.left - 10, rc.bottom - rc.top - 10);
+                }
+                break;
+                case ID_BTN_FILL:
+                {
+                    graphics.DrawImage(currentTheme.fillIcon, 5, 5, rc.right - rc.left - 10, rc.bottom - rc.top - 10);
+                }
+                break;
+                case ID_BTN_TEXT:
+                {
+                    graphics.DrawImage(currentTheme.textIcon, 5, 5, rc.right - rc.left - 10, rc.bottom - rc.top - 10);
+                }
+                break;
+                case ID_BTN_COLOR_PICKER:
+                {
+                    graphics.DrawImage(currentTheme.colorPickerIcon, 5, 5, rc.right - rc.left - 10, rc.bottom - rc.top - 10);
+                }
+                break;
+                case ID_BTN_MAGNIFIER:
+                {
+                    graphics.DrawImage(currentTheme.magnifierIcon, 5, 5, rc.right - rc.left - 10, rc.bottom - rc.top - 10);
+                }
+                break;
+                case ID_BTN_CUSTOM_COLOR:
+                {
+                    graphics.DrawImage(currentTheme.customColorIcon, 5, 5, rc.right - rc.left - 10, rc.bottom - rc.top - 10);
+                }
+                break;
             }
         }
         return 0;
@@ -413,7 +468,8 @@ void CreateCanvasBitmap(HWND hwnd, RECT canvas, HDC &hPermanentDC, HBITMAP &hBit
     ReleaseDC(hwnd, hdc);
 }
 
-void AddMenus(HWND hwnd ){
+void AddMenus(HWND hwnd )
+{
 
     hMenu = CreateMenu();
     HMENU hFileMenu = CreateMenu();
@@ -425,28 +481,28 @@ void AddMenus(HWND hwnd ){
 
     SetMenu(hwnd, hMenu);
 }
-
-void AddControls(HWND hwnd){
+void AddControls(HWND hwnd)
+{
 
     //tools
-    CreateWindowW( L"Button", L"Pencil", WS_VISIBLE | WS_CHILD, 4, 4, 44, 44, hwnd, (HMENU)ID_BTN_PENCIL, NULL, NULL);
-    CreateWindowW( L"Button", L"Fill", WS_VISIBLE | WS_CHILD, 52, 4, 44, 44, hwnd, (HMENU)ID_BTN_FILL, NULL, NULL);
-    CreateWindowW( L"Button", L"Text", WS_VISIBLE | WS_CHILD, 100, 4, 44, 44, hwnd, (HMENU)ID_BTN_TEXT, NULL, NULL);
-    CreateWindowW( L"Button", L"Eraser", WS_VISIBLE | WS_CHILD, 4, 52, 44, 44, hwnd, (HMENU)ID_BTN_ERASER, NULL, NULL);
-    CreateWindowW( L"Button", L"Color picker", WS_VISIBLE | WS_CHILD, 52, 52, 44, 44, hwnd, (HMENU)ID_BTN_COLOR_PICKER, NULL, NULL);
-    CreateWindowW( L"Button", L"Magnifier", WS_VISIBLE | WS_CHILD, 100, 52, 44, 44, hwnd, (HMENU)ID_BTN_MAGNIFIER, NULL, NULL);
+    CreateWindowW( L"Button", L"", WS_VISIBLE | WS_CHILD | BS_OWNERDRAW, 4, 4, 44, 44, hwnd, (HMENU)ID_BTN_PENCIL, NULL, NULL);
+    CreateWindowW( L"Button", L"", WS_VISIBLE | WS_CHILD | BS_OWNERDRAW, 52, 4, 44, 44, hwnd, (HMENU)ID_BTN_FILL, NULL, NULL);
+    CreateWindowW( L"Button", L"", WS_VISIBLE | WS_CHILD | BS_OWNERDRAW, 100, 4, 44, 44, hwnd, (HMENU)ID_BTN_TEXT, NULL, NULL);
+    CreateWindowW( L"Button", L"", WS_VISIBLE | WS_CHILD | BS_OWNERDRAW, 4, 52, 44, 44, hwnd, (HMENU)ID_BTN_ERASER, NULL, NULL);
+    CreateWindowW( L"Button", L"", WS_VISIBLE | WS_CHILD | BS_OWNERDRAW, 52, 52, 44, 44, hwnd, (HMENU)ID_BTN_COLOR_PICKER, NULL, NULL);
+    CreateWindowW( L"Button", L"", WS_VISIBLE | WS_CHILD | BS_OWNERDRAW, 100, 52, 44, 44, hwnd, (HMENU)ID_BTN_MAGNIFIER, NULL, NULL);
     
-    CreateWindowW( L"Button", L"edit color", WS_VISIBLE | WS_CHILD, 398, 4, 44, 44, hwnd, (HMENU)ID_BTN_CUSTOM_COLOR, NULL, NULL);
+    CreateWindowW( L"Button", L"", WS_VISIBLE | WS_CHILD | BS_OWNERDRAW, 398, 4, 44, 44, hwnd, (HMENU)ID_BTN_CUSTOM_COLOR, NULL, NULL);
     
     hSlider = CreateWindowEx(0, TRACKBAR_CLASS, L"", WS_CHILD | WS_VISIBLE | TBS_AUTOTICKS, 454, 4, 200, 30, hwnd, (HMENU)ID_SLIDER, NULL, NULL);
 
-    //custom controls
+    //shapes
     CreateWindowW(L"Button", L"", WS_VISIBLE | WS_CHILD | WS_BORDER |  BS_OWNERDRAW, 666, 4, 44, 44, hwnd, (HMENU)ID_BTN_RECTANGLE, NULL, NULL);
     CreateWindowW(L"Button", L"", WS_VISIBLE | WS_CHILD | WS_BORDER |  BS_OWNERDRAW, 714, 4, 44, 44, hwnd, (HMENU)ID_BTN_ELLIPSE, NULL, NULL);
     CreateWindowW(L"Button", L"", WS_VISIBLE | WS_CHILD | WS_BORDER |  BS_OWNERDRAW, 762, 4, 44, 44, hwnd, (HMENU)ID_BTN_LINE, NULL, NULL);
 }
-
-void CustomColorBox(HWND hwnd){
+void CustomColorBox(HWND hwnd)
+{
     CHOOSECOLOR cc = {};
     cc.lStructSize = sizeof(cc);
     cc.hwndOwner = hwnd;
@@ -461,8 +517,8 @@ void CustomColorBox(HWND hwnd){
         hPenColor = CreatePen(PS_SOLID, penWidth, colorChoice);
     }
 }
-
-void drawing (HWND hwnd, RECT canvas, POINT pt, HDC hdc, POINT& ptPrevious){
+void drawing (HWND hwnd, RECT canvas, POINT pt, HDC hdc, POINT& ptPrevious)
+{
     int mouse_x, mouse_y, x1, y1, x2, y2;
 
     mouse_x = pt.x - canvas.left;
@@ -552,3 +608,25 @@ void drawing (HWND hwnd, RECT canvas, POINT pt, HDC hdc, POINT& ptPrevious){
     ptPrevious.y = mouse_y;
 }
 
+std::wstring GetExeDir()
+{
+    wchar_t path[MAX_PATH];
+    GetModuleFileNameW(NULL, path, MAX_PATH);
+
+    std::wstring fullPath(path);
+    size_t pos = fullPath.find_last_of(L"\\/");
+    return fullPath.substr(0, pos);
+}
+
+void LoadThemes()
+{
+    std::wstring baseDir = GetExeDir() + L"\\..\\themes\\Classic-Light\\";
+
+    currentTheme.pencilIcon = Gdiplus::Bitmap::FromFile((baseDir + L"pen.png").c_str());
+    currentTheme.eraserIcon = Gdiplus::Bitmap::FromFile((baseDir +L"eraser.png").c_str());
+    currentTheme.fillIcon = Gdiplus::Bitmap::FromFile((baseDir +L"fill.png").c_str());
+    currentTheme.textIcon = Gdiplus::Bitmap::FromFile((baseDir +L"text.png").c_str());
+    currentTheme.colorPickerIcon = Gdiplus::Bitmap::FromFile((baseDir +L"color-picker.png").c_str());
+    currentTheme.magnifierIcon = Gdiplus::Bitmap::FromFile((baseDir +L"loupe.png").c_str());
+    currentTheme.customColorIcon = Gdiplus::Bitmap::FromFile((baseDir +L"color-wheel.png").c_str());
+}
