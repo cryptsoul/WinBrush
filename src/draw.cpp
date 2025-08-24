@@ -9,6 +9,8 @@
 #include <fstream>
 #include <gdiplus.h>
 #include <string>
+#include <shobjidl.h>
+#include <wrl/client.h>
 
 enum ToolType{
     TOOL_PENCIL,
@@ -17,12 +19,9 @@ enum ToolType{
     TOOL_ERASER,
     TOOL_COLOR_PICKER,
     TOOL_MAGNIFIER,
-
     SHAPE_RECTANGLE,
     SHAPE_ELLIPSE,
     SHAPE_LINE,
-
-    TOOL_NONE
 };
 ToolType currentTool = TOOL_PENCIL;
 
@@ -63,7 +62,6 @@ static HPEN hPenColor = CreatePen(PS_SOLID, penWidth, colorChoice);
 
 static POINT pStart;
 
-
 static HDC hPermanentDC, hPreviewDC;
 static HBITMAP hBitmap, hPreviewBitmap;
 
@@ -76,11 +74,17 @@ void CustomColorBox(HWND);
 void drawing (HWND, RECT, POINT, HDC, POINT&);
 void CreateCanvasBitmap(HWND, RECT, HDC&, HBITMAP&, HDC&, HBITMAP&);
 void LoadThemes();
+void OpenFile(HWND, HDC, int, int);
+void SaveFile(HWND, HBITMAP);
+int GetEncoderClsid(const WCHAR*, CLSID* );
 
 int WINAPI wWinMain(HINSTANCE hInst, HINSTANCE hPrevInst, PWSTR pCmdLine, int nCmdShow){
 
     Gdiplus::GdiplusStartupInput gdiplusStartupInput;
     Gdiplus::GdiplusStartup(&gdiplusToken, &gdiplusStartupInput,NULL);
+
+    HRESULT hCOM = CoInitializeEx(NULL, COINIT_APARTMENTTHREADED | COINIT_DISABLE_OLE1DDE);
+
 
     const wchar_t CLASS_NAME[] = L"Main";
 
@@ -100,8 +104,6 @@ int WINAPI wWinMain(HINSTANCE hInst, HINSTANCE hPrevInst, PWSTR pCmdLine, int nC
 
     ShowWindow(hwnd, SW_MAXIMIZE);
 
-
-
     MSG msg = {};
     while (GetMessage(&msg, NULL, 0,0) > 0)
     {
@@ -109,7 +111,7 @@ int WINAPI wWinMain(HINSTANCE hInst, HINSTANCE hPrevInst, PWSTR pCmdLine, int nC
         DispatchMessage(&msg);
     }
     Gdiplus::GdiplusShutdown(gdiplusToken);
-    
+    CoUninitialize();   
     return 0;
 }
 
@@ -138,8 +140,16 @@ LRESULT CALLBACK WindowProc(HWND hwnd, UINT uMsg, WPARAM wp, LPARAM lp){
                 case  ID_MENU_NEW:
                     return 0;
                 case   ID_MENU_OPEN:
+                {
+                    int width = canvas.right - canvas.left;
+                    int height = canvas.bottom - canvas.top;
+                    OpenFile(hwnd, hPermanentDC, width, height);
+                }
                     return 0;
                 case  ID_MENU_SAVE:
+                {
+                    SaveFile(hwnd, hBitmap);
+                }
                     return 0;
                 case ID_BTN_CUSTOM_COLOR:
                 {
@@ -463,6 +473,12 @@ void CreateCanvasBitmap(HWND hwnd, RECT canvas, HDC &hPermanentDC, HBITMAP &hBit
     SelectObject(hPreviewDC, hPreviewBitmap);
 
     FillRect(hPreviewDC, &bmpRect, whiteBrush);
+
+    //create GDI+ components 
+
+    Gdiplus::Graphics* gdiPlusGraphics;
+    gdiPlusGraphics = new Gdiplus::Graphics(hPermanentDC);
+    gdiPlusGraphics->SetSmoothingMode(Gdiplus::SmoothingModeAntiAlias);
    
     DeleteObject(whiteBrush);
     ReleaseDC(hwnd, hdc);
@@ -481,6 +497,7 @@ void AddMenus(HWND hwnd )
 
     SetMenu(hwnd, hMenu);
 }
+
 void AddControls(HWND hwnd)
 {
 
@@ -501,6 +518,7 @@ void AddControls(HWND hwnd)
     CreateWindowW(L"Button", L"", WS_VISIBLE | WS_CHILD | WS_BORDER |  BS_OWNERDRAW, 714, 4, 44, 44, hwnd, (HMENU)ID_BTN_ELLIPSE, NULL, NULL);
     CreateWindowW(L"Button", L"", WS_VISIBLE | WS_CHILD | WS_BORDER |  BS_OWNERDRAW, 762, 4, 44, 44, hwnd, (HMENU)ID_BTN_LINE, NULL, NULL);
 }
+
 void CustomColorBox(HWND hwnd)
 {
     CHOOSECOLOR cc = {};
@@ -517,6 +535,7 @@ void CustomColorBox(HWND hwnd)
         hPenColor = CreatePen(PS_SOLID, penWidth, colorChoice);
     }
 }
+
 void drawing (HWND hwnd, RECT canvas, POINT pt, HDC hdc, POINT& ptPrevious)
 {
     int mouse_x, mouse_y, x1, y1, x2, y2;
@@ -629,4 +648,116 @@ void LoadThemes()
     currentTheme.colorPickerIcon = Gdiplus::Bitmap::FromFile((baseDir +L"color-picker.png").c_str());
     currentTheme.magnifierIcon = Gdiplus::Bitmap::FromFile((baseDir +L"loupe.png").c_str());
     currentTheme.customColorIcon = Gdiplus::Bitmap::FromFile((baseDir +L"color-wheel.png").c_str());
+}
+
+int GetEncoderClsid(const WCHAR* format, CLSID* pClsid)
+{
+    UINT num = 0;
+    UINT size = 0;
+
+    Gdiplus::GetImageEncodersSize(&num, &size);
+    if(size == 0) return -1;
+
+    Gdiplus::ImageCodecInfo* pImageCodecInfo = (Gdiplus::ImageCodecInfo*)(malloc(size));
+    Gdiplus::GetImageEncoders(num, size, pImageCodecInfo);
+
+    for(UINT j=0; j<num; ++j){
+        if(wcscmp(pImageCodecInfo[j].MimeType, format) == 0){
+            *pClsid = pImageCodecInfo[j].Clsid;
+            free(pImageCodecInfo);
+            return j;
+        }
+    }
+
+    free(pImageCodecInfo);
+    return -1;
+}
+
+void OpenFile(HWND hwnd, HDC hPermanentDC, int width, int height) {
+    Microsoft::WRL::ComPtr<IFileOpenDialog> pFileOpen;
+    HRESULT hr = CoCreateInstance(CLSID_FileOpenDialog, NULL, CLSCTX_ALL, IID_PPV_ARGS(&pFileOpen));
+    
+    if (SUCCEEDED(hr)) {
+        COMDLG_FILTERSPEC rgSpec[] = {
+            { L"Image Files", L"*.png;*.jpg;*.bmp;*.gif" }
+        };
+        pFileOpen->SetFileTypes(1, rgSpec);
+
+        hr = pFileOpen->Show(hwnd);
+
+        if (SUCCEEDED(hr)) {
+            Microsoft::WRL::ComPtr<IShellItem> pItem;
+            hr = pFileOpen->GetResult(&pItem);
+
+            if (SUCCEEDED(hr)) {
+                PWSTR pszFilePath;
+                hr = pItem->GetDisplayName(SIGDN_FILESYSPATH, &pszFilePath);
+
+                if (SUCCEEDED(hr)) {
+                    // Load image
+                    Gdiplus::Bitmap* loadedImage = new Gdiplus::Bitmap(pszFilePath);
+                    
+                    if (loadedImage->GetLastStatus() == Gdiplus::Ok) {
+                        // Clear canvas
+                        HBRUSH whiteBrush = CreateSolidBrush(RGB(255, 255, 255));
+                        RECT rect = {0, 0, width, height};
+                        FillRect(hPermanentDC, &rect, whiteBrush);
+                        DeleteObject(whiteBrush);
+                        
+                        Gdiplus::Graphics graphics(hPermanentDC);
+                        graphics.DrawImage(loadedImage, 0, 0, width, height);
+                        
+                        InvalidateRect(hwnd, NULL, TRUE);
+                        UpdateWindow(hwnd);
+                        
+                        MessageBox(hwnd, L"Image loaded!", L"Success", MB_OK);
+                    } else {
+                        MessageBox(hwnd, L"Failed to load image", L"Error", MB_OK);
+                    }
+                    
+                    delete loadedImage;
+                    CoTaskMemFree(pszFilePath);
+                }
+            }
+        }
+    }
+}
+
+void SaveFile(HWND hwnd, HBITMAP hBitmap)
+{
+    Microsoft::WRL::ComPtr<IFileSaveDialog> pFileSave;
+    HRESULT hr = CoCreateInstance(CLSID_FileSaveDialog, NULL, CLSCTX_ALL, IID_PPV_ARGS(&pFileSave));
+    if (SUCCEEDED(hr))
+    {
+        COMDLG_FILTERSPEC rgSpec[]={
+            { L"PNG Files", L"*.png" },
+            { L"JPEG Files", L"*.jpg" },
+            { L"Bitmap Files", L"*.bmp" }
+        };
+        pFileSave->SetFileTypes(3, rgSpec);
+        pFileSave->SetDefaultExtension(L"png");
+
+        hr = pFileSave->Show(hwnd);
+
+        if(SUCCEEDED(hr)){
+            Microsoft::WRL::ComPtr<IShellItem> pItem;
+            hr = pFileSave->GetResult(&pItem);
+
+            if(SUCCEEDED(hr)){
+                PWSTR pszFilePath;
+                hr = pItem->GetDisplayName(SIGDN_FILESYSPATH, &pszFilePath);
+
+                if(SUCCEEDED(hr)){
+                    Gdiplus::Bitmap* gdipBitmap = new Gdiplus::Bitmap(hBitmap, NULL);
+
+                    CLSID encoderClsid;
+                    GetEncoderClsid(L"image/png", &encoderClsid);
+                    gdipBitmap->Save(pszFilePath, &encoderClsid, NULL);
+
+                    MessageBox((hwnd), L"File saved!", L"Success", MB_OK);
+                    CoTaskMemFree(pszFilePath);
+                }
+            }
+        }
+    }
 }
