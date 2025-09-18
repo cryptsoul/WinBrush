@@ -1,522 +1,107 @@
-#ifndef UNICODE
-#define UNICODE
-#endif
-
 #include <windows.h>
-#include <windowsx.h>
-#include <commdlg.h>
-#include <commctrl.h>
-#include <fstream>
-#include <gdiplus.h>
+#include <Gdiplus.h>
+#include "draw.h"
+#include "canvas.h"
+
+
+#include <cstdio>
+#include <format>
+#include <initializer_list>
+#include <iostream>
 #include <string>
-#include <shobjidl.h>
-#include <wrl/client.h>
 
-enum ToolType{
-    TOOL_PENCIL,
-    TOOL_FILL, 
-    TOOL_TEXT,
-    TOOL_ERASER,
-    TOOL_COLOR_PICKER,
-    TOOL_MAGNIFIER,
-    SHAPE_RECTANGLE,
-    SHAPE_ELLIPSE,
-    SHAPE_LINE,
-};
+#include <algorithm>
+#undef min
+
 ToolType currentTool = TOOL_PENCIL;
-
-enum MenuAndButtonIDs {
-    ID_MENU_NEW = 1,
-    ID_MENU_OPEN,
-    ID_MENU_SAVE,
-    ID_BTN_CUSTOM_COLOR,
-    ID_SLIDER,
-    ID_BTN_RECTANGLE,
-    ID_BTN_ELLIPSE,
-    ID_BTN_LINE,
-    ID_BTN_PENCIL,
-    ID_BTN_ERASER,
-    ID_BTN_FILL,
-    ID_BTN_TEXT,
-    ID_BTN_COLOR_PICKER,
-    ID_BTN_MAGNIFIER
-};
-
-struct Theme{
-    Gdiplus::Bitmap* pencilIcon;
-    Gdiplus::Bitmap* eraserIcon;
-    Gdiplus::Bitmap* fillIcon;
-    Gdiplus::Bitmap* textIcon;
-    Gdiplus::Bitmap* colorPickerIcon;
-    Gdiplus::Bitmap* magnifierIcon;
-    Gdiplus::Bitmap* customColorIcon;
-};
-Theme currentTheme;
-
-HMENU hMenu;
-static HWND hSlider;
-static int penWidth = 1;
-static COLORREF colorChoice = RGB(0, 0, 0);
+DrawingState gDrawingState = {nullptr, Gdiplus::Color(255, 0, 0, 0), 1};
+bool newStroke = true;
+static bool check = true;
 static COLORREF customColors[16];
-static HPEN hPenColor = CreatePen(PS_SOLID, penWidth, colorChoice);
 
-static POINT pStart;
+void Drawing (HWND hwnd, Gdiplus::Rect canvas, Gdiplus::Graphics* g, Gdiplus::Point pStart, Gdiplus::Point pEnd)
+{    
+    static Gdiplus::Point pPrevious;
+    Gdiplus::Point one = {pStart.X - canvas.X, pStart.Y - canvas.Y};
+    Gdiplus::Point two = {pEnd.X - canvas.X, pEnd.Y - canvas.Y};
 
-static HDC hPermanentDC, hPreviewDC;
-static HBITMAP hBitmap, hPreviewBitmap;
+    int width = abs(two.X - one.X);
+    int height = abs(two.Y - one.Y);
+    
+    int side = std::min(abs(width), abs(height));
 
-ULONG_PTR gdiplusToken;
+    Gdiplus::Point upLeft(std::min(one.X, two.X), std::min(one.Y, two.Y));
 
-LRESULT CALLBACK WindowProc(HWND hwnd, UINT uMsg, WPARAM wp, LPARAM lp);
-void AddMenus(HWND);
-void AddControls(HWND);
-void CustomColorBox(HWND);
-void drawing (HWND, RECT, POINT, HDC, POINT&);
-void CreateCanvasBitmap(HWND, RECT, HDC&, HBITMAP&, HDC&, HBITMAP&);
-void LoadThemes();
-void OpenFile(HWND, HDC, int, int);
-void SaveFile(HWND, HBITMAP);
-int GetEncoderClsid(const WCHAR*, CLSID* );
-
-int WINAPI wWinMain(HINSTANCE hInst, HINSTANCE hPrevInst, PWSTR pCmdLine, int nCmdShow){
-
-    Gdiplus::GdiplusStartupInput gdiplusStartupInput;
-    Gdiplus::GdiplusStartup(&gdiplusToken, &gdiplusStartupInput,NULL);
-
-    HRESULT hCOM = CoInitializeEx(NULL, COINIT_APARTMENTTHREADED | COINIT_DISABLE_OLE1DDE);
+    int squareWidth = (two.X >= one.X) ? side : -side;
+    int squareHeight = (two.Y >= one.Y) ? side : -side;
+    
+    Gdiplus::Point squareTopLeft;
+    squareTopLeft.X = (two.X >= one.X) ? one.X : one.X - side;
+    squareTopLeft.Y = (two.Y >= one.Y) ? one.Y : one.Y - side;
 
 
-    const wchar_t CLASS_NAME[] = L"Main";
-
-    WNDCLASS wc = {};
-
-    wc.hCursor = LoadCursor(NULL, IDC_ARROW);
-    wc.hbrBackground = CreateSolidBrush(RGB(28,34,33));
-    wc.lpfnWndProc = WindowProc;
-    wc.hInstance = hInst;
-    wc.lpszClassName = CLASS_NAME;
-
-    if(!RegisterClassW(&wc)) return -1;
-
-    HWND hwnd = CreateWindowW(CLASS_NAME, L"WinBrush", WS_OVERLAPPEDWINDOW, CW_USEDEFAULT, CW_USEDEFAULT, CW_USEDEFAULT, CW_USEDEFAULT, NULL, NULL, hInst, NULL);
-
-    if(hwnd == NULL) return 0;
-
-    ShowWindow(hwnd, SW_MAXIMIZE);
-
-    MSG msg = {};
-    while (GetMessage(&msg, NULL, 0,0) > 0)
-    {
-        TranslateMessage(&msg);
-        DispatchMessage(&msg);
+    if (newStroke) {
+        pPrevious = one;
+        newStroke  = false;
     }
-    Gdiplus::GdiplusShutdown(gdiplusToken);
-    CoUninitialize();   
-    return 0;
-}
 
-LRESULT CALLBACK WindowProc(HWND hwnd, UINT uMsg, WPARAM wp, LPARAM lp){
-    
-    static BOOL fDraw = FALSE;
-    static POINT ptPrevious;
-    POINT pt = {LOWORD(lp), HIWORD(lp)};
-
-    
-    static RECT clientRect;
-    static RECT canvas;
-
-    struct ColorBox {
-        RECT rect;
-        COLORREF color;
-    };
-    static ColorBox boxes[20];
-
-    switch (uMsg)
+    if(canvas.Contains(pEnd))
     {
-        case WM_COMMAND:
-        {
-            switch (wp)
+        switch (currentTool){
+            case TOOL_PENCIL:
             {
-                case  ID_MENU_NEW:
-                    return 0;
-                case   ID_MENU_OPEN:
-                {
-                    int width = canvas.right - canvas.left;
-                    int height = canvas.bottom - canvas.top;
-                    OpenFile(hwnd, hPermanentDC, width, height);
-                }
-                    return 0;
-                case  ID_MENU_SAVE:
-                {
-                    SaveFile(hwnd, hBitmap);
-                }
-                    return 0;
-                case ID_BTN_CUSTOM_COLOR:
-                {
-                    CustomColorBox(hwnd);
-                }
-                    return 0;
-                case  ID_BTN_RECTANGLE:
-                {
-                    currentTool = SHAPE_RECTANGLE;
-                }
-                    return 0;
-                case  ID_BTN_ELLIPSE:
-                {
-                    currentTool = SHAPE_ELLIPSE;
-                }
-                    return 0;
-                case  ID_BTN_LINE:
-                {
-                    currentTool = SHAPE_LINE;
-                }
-                return 0;
-                case  ID_BTN_PENCIL:
-                {
-                    currentTool = TOOL_PENCIL;
-                }
-                return 0;
-                case  ID_BTN_ERASER:
-                {
-                    currentTool = TOOL_ERASER;
-                }
-                return 0;
-                case  ID_BTN_FILL:
-                {
-                    currentTool = TOOL_FILL;
-                }
-                return 0;
-                case  ID_BTN_TEXT:
-                {
-                    currentTool = TOOL_TEXT;
-                }
-                return 0;
-                case  ID_BTN_COLOR_PICKER:
-                {
-                    currentTool = TOOL_COLOR_PICKER;
-                }
-                return 0;
-                case  ID_BTN_MAGNIFIER:
-                {
-                    currentTool = TOOL_MAGNIFIER;
-                }
-                return 0;
+                g->DrawLine(gDrawingState.pen, pPrevious, two);
             }
-            return 0;
-        }
-        case WM_DESTROY:
-        {
-            if (hBitmap) DeleteObject(hBitmap);
-            if (hPermanentDC) DeleteDC(hPermanentDC);
-            if (hPreviewBitmap) DeleteObject(hPreviewBitmap);
-            if (hPreviewDC) DeleteDC(hPreviewDC);
-            PostQuitMessage(0);
-            
-            return 0;
-        }
-        case WM_CREATE:
-        {
-            AddMenus(hwnd);
-            AddControls(hwnd);
-            LoadThemes();
-
-            GetClientRect(hwnd, &clientRect);
-            canvas = {50, 150, clientRect.right - 50, clientRect.bottom - 50};
-
-            CreateCanvasBitmap(hwnd, canvas, hPermanentDC, hBitmap, hPreviewDC, hPreviewBitmap);
-
-            SendMessage(hSlider, TBM_SETRANGE, TRUE, MAKELONG(1, 20));
-            SendMessage(hSlider, TBM_SETPOS, TRUE, penWidth);
-            
-            if (hPenColor) DeleteObject(hPenColor);
-            hPenColor = CreatePen(PS_SOLID, penWidth, colorChoice);
-            
-            SendMessage(hSlider, TBM_SETTICFREQ, 1, 0);
-            
-            return 0;
-        }
-        case WM_SIZE:
-        {
-            GetClientRect(hwnd, &clientRect);
-            canvas = {50, 150, clientRect.right - 50, clientRect.bottom - 50};
-
-            if (hBitmap) DeleteObject(hBitmap);
-            if (hPermanentDC) DeleteDC(hPermanentDC);
-            CreateCanvasBitmap(hwnd, canvas, hPermanentDC, hBitmap, hPreviewDC, hPreviewBitmap);
-            InvalidateRect(hwnd, NULL, TRUE);
-
-            return 0;
-        }
-        case WM_LBUTTONDOWN:
-        {
-            if(PtInRect(&canvas, pt))
+            break;
+            case TOOL_ERASER:
             {
-                fDraw = TRUE;
-                ptPrevious.x = pt.x - canvas.left;
-                ptPrevious.y = pt.y - canvas.top;
-
-                pStart = pt;
-
-                BitBlt(hPreviewDC, 0, 0, canvas.right - canvas.left, canvas.bottom - canvas.top, hPermanentDC, 0, 0, SRCCOPY);
-
-                drawing(hwnd, canvas, pt, hPreviewDC, ptPrevious);
+                
+                Gdiplus::Pen eraser(Gdiplus::Color(255, 250, 255, 255), gDrawingState.penWidth);
+                g->DrawLine(&eraser, pPrevious, two);
             }
-            else
+            break;
+            case SHAPE_RECTANGLE:
             {
-                int x = GET_X_LPARAM(lp);
-                int y = GET_Y_LPARAM(lp);
 
-                for (int i = 0; i<20; i++){
-                    if(PtInRect(&boxes[i].rect, {x, y})){
-                        colorChoice = boxes[i].color;
-                        if (hPenColor) DeleteObject(hPenColor);
-                        hPenColor = CreatePen(PS_SOLID, penWidth, colorChoice);
-                        break;
-                    }
+                g->DrawImage(canvasBitmap, 0, 0, canvas.Width, canvas.Height);
+                if(GetAsyncKeyState(VK_SHIFT)&0x8000){
+                    g->DrawRectangle(gDrawingState.pen, squareTopLeft.X, squareTopLeft.Y, abs(side), abs(side));
                 }
+                else g->DrawRectangle(gDrawingState.pen, upLeft.X, upLeft.Y, width, height);
             }
-            return 0;
-        }
-        case WM_MOUSEMOVE:
-        {
-            if(fDraw && (wp & MK_LBUTTON))
+            break;
+            case SHAPE_ELLIPSE:
             {
-                if(PtInRect(&canvas, pt)){
-                    InvalidateRect(hwnd, &canvas, FALSE);
+                previewGraphics->DrawImage(canvasBitmap, 0, 0, canvas.Width, canvas.Height);
+
+                if(GetAsyncKeyState(VK_SHIFT)&0x8000){
+                    int side = (abs(width) < abs(height)) ? abs(width) : abs (height);
+                    g->DrawEllipse(gDrawingState.pen, squareTopLeft.X, squareTopLeft.Y, abs(side), abs(side));
                 }
-                drawing(hwnd, canvas, pt, hPreviewDC, ptPrevious);
+                else g->DrawEllipse(gDrawingState.pen, upLeft.X, upLeft.Y, width, height);
             }
-            return 0;
-        }
-        case WM_LBUTTONUP:
-        {
-            fDraw = FALSE;
-            BitBlt(hPermanentDC, 0, 0, canvas.right - canvas.left, canvas.bottom - canvas.top, hPreviewDC, 0, 0, SRCCOPY);
-
-            return 0;
-        }
-        case WM_RBUTTONDOWN:
-        {
-            BitBlt(hPreviewDC, 0, 0, canvas.right - canvas.left, canvas.bottom - canvas.top, hPermanentDC, 0, 0, SRCCOPY);
-            InvalidateRect(hwnd, &canvas, FALSE);
-            fDraw = FALSE;
-
-            return 0;
-        }
-        case WM_HSCROLL:
-        {
-            if ((HWND)lp == hSlider) {
-                penWidth = SendMessage(hSlider, TBM_GETPOS, 0, 0);
-                if (hPenColor) DeleteObject(hPenColor);
-                hPenColor = CreatePen(PS_SOLID, penWidth, colorChoice);
+            break;
+            case SHAPE_LINE:
+            {
+                previewGraphics->DrawImage(canvasBitmap, 0, 0, canvas.Width, canvas.Height);
+                g->DrawLine(gDrawingState.pen, one, two);
             }
-            return 0;
+            break;
         }
-        case WM_PAINT:
-        {
-            PAINTSTRUCT ps;
-
-            HDC hdc = BeginPaint(hwnd, &ps);
-
-            // draw canvas bitmap (preview bitmap)
-            BitBlt(hdc, canvas.left, canvas.top, canvas.right - canvas.left, canvas.bottom - canvas.top, hPreviewDC, 0, 0, SRCCOPY);
-
-            //toolbar 
-            RECT toolbar = {0, 0, clientRect.right, 100};
-            HBRUSH toolbarBrush = CreateSolidBrush(RGB(37,41,40));
-            FillRect(hdc, &toolbar, toolbarBrush);
-            DeleteObject(toolbarBrush);
-
-            //Draw lines
-            HPEN hPen = CreatePen(PS_SOLID, 2, RGB(55,59,58));
-            SelectObject(hdc, hPen);
-
-            MoveToEx(hdc, 150, 6, NULL);
-            LineTo(hdc, 150, 96);
-
-            MoveToEx(hdc, 448, 6, NULL);
-            LineTo(hdc, 448, 96);
-
-            MoveToEx(hdc, 660, 6, NULL);
-            LineTo(hdc, 660, 96);
-
-            DeleteObject(hPen);
-
-            //basic colors
-            COLORREF basicColor[]={
-                RGB(0, 0, 0),   RGB(127, 127, 127),   RGB(136, 0, 21),
-                RGB(237, 28, 36), RGB(255, 127, 39), RGB(255, 242, 0),
-                RGB(34, 177, 76),   RGB(0, 162, 232),   RGB(63, 72, 204),
-                RGB(163, 73, 164), RGB(255, 255, 255), RGB(195, 195, 195),
-                RGB(185, 122, 87), RGB(255, 174, 201), RGB(255, 204, 14),
-                RGB(239, 228, 176), RGB(181, 230, 29), RGB(153, 217, 234),
-                RGB(112, 146, 190), RGB(200, 191, 231)
-            };
-
-            int x = 156, y = 4, colorBoxSize = 20, box_x;
-            for (int i = 0; i < 20; i++) {
-                if(i<10){ 
-                    box_x = x + (i * (colorBoxSize + 4));
-                }
-                else {
-                    y = 28; 
-                    box_x = x + ((i-10) * (colorBoxSize + 4));
-                }
-
-                boxes[i].rect = {box_x, y, box_x + colorBoxSize, y+colorBoxSize};
-                boxes[i].color = basicColor[i];
-
-                HBRUSH basicColorBrush = CreateSolidBrush(basicColor[i]);
-                SelectObject(hdc, basicColorBrush);
-                Rectangle(hdc, box_x, y, box_x + colorBoxSize, y + colorBoxSize);
-                DeleteObject(basicColorBrush);
-            }
-
-            EndPaint(hwnd, &ps);
-
-            return 0;
-        }
-        case WM_DRAWITEM:
-        {
-            LPDRAWITEMSTRUCT drawInfo = (LPDRAWITEMSTRUCT)lp;
-
-            HDC hdc = drawInfo->hDC;
-            RECT rc = drawInfo->rcItem;
-            Gdiplus::Graphics graphics(hdc);
-
-
-            COLORREF bgColor = RGB(240, 240, 240); 
-            if (drawInfo->itemState & ODS_SELECTED) bgColor = RGB(200, 200, 200);
-            if (drawInfo->itemState & ODS_DISABLED) bgColor = RGB(210, 210, 210);
-
-            HBRUSH bgColorBrush = CreateSolidBrush(bgColor);
-            FillRect(drawInfo->hDC, &drawInfo->rcItem, bgColorBrush);
-            DeleteObject(bgColorBrush);
-
-            switch(drawInfo->CtlID){
-                case ID_BTN_RECTANGLE:
-                {
-                    Rectangle(hdc, rc.left+5, rc.top+10, rc.right - 5, rc.bottom - 10);
-                }
-                break;
-                case ID_BTN_ELLIPSE:
-                {
-                    Ellipse(hdc, rc.left+5, rc.top+10, rc.right - 5, rc.bottom - 10);
-                }
-                break;
-                case ID_BTN_LINE:
-                {
-                    MoveToEx(hdc, rc.left+5, rc.top+10, NULL);
-                    LineTo(hdc, rc.right - 5, rc.bottom - 10);
-                }
-                break;
-                case ID_BTN_PENCIL:
-                {
-                    graphics.DrawImage(currentTheme.pencilIcon, 5, 5, rc.right - rc.left - 10, rc.bottom - rc.top - 10);
-                }
-                break;
-                case ID_BTN_ERASER:
-                {
-                    graphics.DrawImage(currentTheme.eraserIcon, 5, 5, rc.right - rc.left - 10, rc.bottom - rc.top - 10);
-                }
-                break;
-                case ID_BTN_FILL:
-                {
-                    graphics.DrawImage(currentTheme.fillIcon, 5, 5, rc.right - rc.left - 10, rc.bottom - rc.top - 10);
-                }
-                break;
-                case ID_BTN_TEXT:
-                {
-                    graphics.DrawImage(currentTheme.textIcon, 5, 5, rc.right - rc.left - 10, rc.bottom - rc.top - 10);
-                }
-                break;
-                case ID_BTN_COLOR_PICKER:
-                {
-                    graphics.DrawImage(currentTheme.colorPickerIcon, 5, 5, rc.right - rc.left - 10, rc.bottom - rc.top - 10);
-                }
-                break;
-                case ID_BTN_MAGNIFIER:
-                {
-                    graphics.DrawImage(currentTheme.magnifierIcon, 5, 5, rc.right - rc.left - 10, rc.bottom - rc.top - 10);
-                }
-                break;
-                case ID_BTN_CUSTOM_COLOR:
-                {
-                    graphics.DrawImage(currentTheme.customColorIcon, 5, 5, rc.right - rc.left - 10, rc.bottom - rc.top - 10);
-                }
-                break;
-            }
-        }
-        return 0;
     }
-    return DefWindowProc(hwnd, uMsg, wp, lp);
+    pPrevious = two;
+
+    RECT newCanvas = ToRECT(canvas);
+    InvalidateRect(hwnd, &newCanvas, FALSE);
 }
 
-void CreateCanvasBitmap(HWND hwnd, RECT canvas, HDC &hPermanentDC, HBITMAP &hBitmap, HDC &hPreviewDC, HBITMAP &hPreviewBitmap) {
-    HDC hdc = GetDC(hwnd);
-
-    int width  = canvas.right - canvas.left;
-    int height = canvas.bottom - canvas.top;
-
-    //Create permanent memory DC + bitmap
-    hPermanentDC = CreateCompatibleDC(hdc);
-    hBitmap = CreateCompatibleBitmap(hdc, width, height);
-    SelectObject(hPermanentDC, hBitmap);
-
-    HBRUSH whiteBrush = CreateSolidBrush(RGB(255, 255, 255));
-    RECT bmpRect = {0, 0, width, height};
-    FillRect(hPermanentDC, &bmpRect, whiteBrush);
-
-    //Create preview DC + bitmap 
-    hPreviewDC = CreateCompatibleDC(hdc);
-    hPreviewBitmap = CreateCompatibleBitmap(hdc, width, height);
-    SelectObject(hPreviewDC, hPreviewBitmap);
-
-    FillRect(hPreviewDC, &bmpRect, whiteBrush);
-
-    //create GDI+ components 
-
-    Gdiplus::Graphics* gdiPlusGraphics;
-    gdiPlusGraphics = new Gdiplus::Graphics(hPermanentDC);
-    gdiPlusGraphics->SetSmoothingMode(Gdiplus::SmoothingModeAntiAlias);
-   
-    DeleteObject(whiteBrush);
-    ReleaseDC(hwnd, hdc);
-}
-
-void AddMenus(HWND hwnd )
-{
-
-    hMenu = CreateMenu();
-    HMENU hFileMenu = CreateMenu();
-
-    AppendMenu(hMenu, MF_POPUP, (UINT_PTR)hFileMenu, L"File");
-    AppendMenu (hFileMenu, MF_STRING,  ID_MENU_NEW, L"New");
-    AppendMenu (hFileMenu, MF_STRING,   ID_MENU_OPEN, L"Open");
-    AppendMenu(hFileMenu, MF_STRING,  ID_MENU_SAVE, L"Save");
-
-    SetMenu(hwnd, hMenu);
-}
-
-void AddControls(HWND hwnd)
-{
-
-    //tools
-    CreateWindowW( L"Button", L"", WS_VISIBLE | WS_CHILD | BS_OWNERDRAW, 4, 4, 44, 44, hwnd, (HMENU)ID_BTN_PENCIL, NULL, NULL);
-    CreateWindowW( L"Button", L"", WS_VISIBLE | WS_CHILD | BS_OWNERDRAW, 52, 4, 44, 44, hwnd, (HMENU)ID_BTN_FILL, NULL, NULL);
-    CreateWindowW( L"Button", L"", WS_VISIBLE | WS_CHILD | BS_OWNERDRAW, 100, 4, 44, 44, hwnd, (HMENU)ID_BTN_TEXT, NULL, NULL);
-    CreateWindowW( L"Button", L"", WS_VISIBLE | WS_CHILD | BS_OWNERDRAW, 4, 52, 44, 44, hwnd, (HMENU)ID_BTN_ERASER, NULL, NULL);
-    CreateWindowW( L"Button", L"", WS_VISIBLE | WS_CHILD | BS_OWNERDRAW, 52, 52, 44, 44, hwnd, (HMENU)ID_BTN_COLOR_PICKER, NULL, NULL);
-    CreateWindowW( L"Button", L"", WS_VISIBLE | WS_CHILD | BS_OWNERDRAW, 100, 52, 44, 44, hwnd, (HMENU)ID_BTN_MAGNIFIER, NULL, NULL);
-    
-    CreateWindowW( L"Button", L"", WS_VISIBLE | WS_CHILD | BS_OWNERDRAW, 398, 4, 44, 44, hwnd, (HMENU)ID_BTN_CUSTOM_COLOR, NULL, NULL);
-    
-    hSlider = CreateWindowEx(0, TRACKBAR_CLASS, L"", WS_CHILD | WS_VISIBLE | TBS_AUTOTICKS, 454, 4, 200, 30, hwnd, (HMENU)ID_SLIDER, NULL, NULL);
-
-    //shapes
-    CreateWindowW(L"Button", L"", WS_VISIBLE | WS_CHILD | WS_BORDER |  BS_OWNERDRAW, 666, 4, 44, 44, hwnd, (HMENU)ID_BTN_RECTANGLE, NULL, NULL);
-    CreateWindowW(L"Button", L"", WS_VISIBLE | WS_CHILD | WS_BORDER |  BS_OWNERDRAW, 714, 4, 44, 44, hwnd, (HMENU)ID_BTN_ELLIPSE, NULL, NULL);
-    CreateWindowW(L"Button", L"", WS_VISIBLE | WS_CHILD | WS_BORDER |  BS_OWNERDRAW, 762, 4, 44, 44, hwnd, (HMENU)ID_BTN_LINE, NULL, NULL);
+RECT ToRECT(const Gdiplus::Rect& r){
+    RECT rc;
+    rc.left = r.X;
+    rc.top = r.Y;
+    rc.right = r.X + r.Width;
+    rc.bottom = r.Y + r.Height;
+    return rc;
 }
 
 void CustomColorBox(HWND hwnd)
@@ -525,239 +110,21 @@ void CustomColorBox(HWND hwnd)
     cc.lStructSize = sizeof(cc);
     cc.hwndOwner = hwnd;
     cc.lpCustColors = customColors;
-    cc.rgbResult = colorChoice;
+    cc.rgbResult = RGB(0,0,0);
     cc.Flags = CC_FULLOPEN | CC_RGBINIT;
 
     if (ChooseColor(&cc))
     {
-        colorChoice = cc.rgbResult;
-        if (hPenColor) DeleteObject(hPenColor);
-        hPenColor = CreatePen(PS_SOLID, penWidth, colorChoice);
+        COLORREF colorChoice = cc.rgbResult;
+        int r = GetRValue(colorChoice);
+        int g = GetGValue(colorChoice);
+        int b = GetBValue(colorChoice);
+
+        gDrawingState.penColor = Gdiplus::Color(255, r, g, b);
     }
 }
 
-void drawing (HWND hwnd, RECT canvas, POINT pt, HDC hdc, POINT& ptPrevious)
-{
-    int mouse_x, mouse_y, x1, y1, x2, y2;
-
-    mouse_x = pt.x - canvas.left;
-    mouse_y = pt.y - canvas.top;
-    
-    
-
-    x1 = pStart.x - canvas.left;
-    y1 = pStart.y - canvas.top;
-    x2 = pt.x - canvas.left;
-    y2 = pt.y - canvas.top;
-
-    SelectObject(hdc, hPenColor);
-
-    if(PtInRect(&canvas, pt))
-    {
-        switch (currentTool){
-            case TOOL_PENCIL:
-            {
-                MoveToEx(hdc, ptPrevious.x, ptPrevious.y, NULL);
-                LineTo(hdc, mouse_x, mouse_y);
-                InvalidateRect(hwnd, &canvas, FALSE);
-            }
-            break;
-            case TOOL_ERASER:
-            {
-                HPEN hEraser = CreatePen(PS_SOLID, penWidth,RGB(255,255,255)) ;
-                SelectObject(hdc, hEraser);
-                MoveToEx(hdc, ptPrevious.x, ptPrevious.y, NULL);
-                LineTo(hdc, mouse_x, mouse_y);
-                InvalidateRect(hwnd, &canvas, FALSE);
-                DeleteObject(hEraser);
-            }
-            break;
-            case SHAPE_RECTANGLE:
-            {
-                BitBlt(hPreviewDC, 0, 0, canvas.right - canvas.left, canvas.bottom - canvas.top, hPermanentDC, 0, 0, SRCCOPY);
-                InvalidateRect(hwnd, &canvas, FALSE);
-
-                if(GetAsyncKeyState(VK_SHIFT)&0x8000){
-                    int width = x2 - x1;
-                    int height = y2 - y1;
-
-                    int side = (abs(width) < abs(height)) ? abs(width) : abs (height);
-
-                    if(width < 0) x2 = x1 - side;
-                    else x2 = x1 + side;
-
-                    if(height < 0) y2 = y1 - side;
-                    else y2 = y1 + side;
-                }
-                Rectangle(hdc, x1, y1, x2, y2); 
-            }
-            break;
-            case SHAPE_ELLIPSE:
-            {
-                BitBlt(hPreviewDC, 0, 0, canvas.right - canvas.left, canvas.bottom - canvas.top, hPermanentDC, 0, 0, SRCCOPY);
-                InvalidateRect(hwnd, &canvas, FALSE);
-
-                if(GetAsyncKeyState(VK_SHIFT)&0x8000){
-                    int width = x2 - x1;
-                    int height = y2 - y1;
-
-                    int side = (abs(width) < abs(height)) ? abs(width) : abs (height);
-
-                    if(width < 0) x2 = x1 - side;
-                    else x2 = x1 + side;
-
-                    if(height < 0) y2 = y1 - side;
-                    else y2 = y1 + side;
-                }
-                Ellipse(hdc, x1, y1, x2, y2);
-            }
-            break;
-            case SHAPE_LINE:
-            {
-                BitBlt(hPreviewDC, 0, 0, canvas.right - canvas.left, canvas.bottom - canvas.top, hPermanentDC, 0, 0, SRCCOPY);
-                InvalidateRect(hwnd, &canvas, FALSE);
-
-                MoveToEx(hdc, x1, y1, NULL);
-                LineTo(hdc, x2, y2);
-            }
-            break;
-        }
-    }
-    ptPrevious.x = mouse_x;
-    ptPrevious.y = mouse_y;
-}
-
-std::wstring GetExeDir()
-{
-    wchar_t path[MAX_PATH];
-    GetModuleFileNameW(NULL, path, MAX_PATH);
-
-    std::wstring fullPath(path);
-    size_t pos = fullPath.find_last_of(L"\\/");
-    return fullPath.substr(0, pos);
-}
-
-void LoadThemes()
-{
-    std::wstring baseDir = GetExeDir() + L"\\..\\themes\\Classic-Light\\";
-
-    currentTheme.pencilIcon = Gdiplus::Bitmap::FromFile((baseDir + L"pen.png").c_str());
-    currentTheme.eraserIcon = Gdiplus::Bitmap::FromFile((baseDir +L"eraser.png").c_str());
-    currentTheme.fillIcon = Gdiplus::Bitmap::FromFile((baseDir +L"fill.png").c_str());
-    currentTheme.textIcon = Gdiplus::Bitmap::FromFile((baseDir +L"text.png").c_str());
-    currentTheme.colorPickerIcon = Gdiplus::Bitmap::FromFile((baseDir +L"color-picker.png").c_str());
-    currentTheme.magnifierIcon = Gdiplus::Bitmap::FromFile((baseDir +L"loupe.png").c_str());
-    currentTheme.customColorIcon = Gdiplus::Bitmap::FromFile((baseDir +L"color-wheel.png").c_str());
-}
-
-int GetEncoderClsid(const WCHAR* format, CLSID* pClsid)
-{
-    UINT num = 0;
-    UINT size = 0;
-
-    Gdiplus::GetImageEncodersSize(&num, &size);
-    if(size == 0) return -1;
-
-    Gdiplus::ImageCodecInfo* pImageCodecInfo = (Gdiplus::ImageCodecInfo*)(malloc(size));
-    Gdiplus::GetImageEncoders(num, size, pImageCodecInfo);
-
-    for(UINT j=0; j<num; ++j){
-        if(wcscmp(pImageCodecInfo[j].MimeType, format) == 0){
-            *pClsid = pImageCodecInfo[j].Clsid;
-            free(pImageCodecInfo);
-            return j;
-        }
-    }
-
-    free(pImageCodecInfo);
-    return -1;
-}
-
-void OpenFile(HWND hwnd, HDC hPermanentDC, int width, int height) {
-    Microsoft::WRL::ComPtr<IFileOpenDialog> pFileOpen;
-    HRESULT hr = CoCreateInstance(CLSID_FileOpenDialog, NULL, CLSCTX_ALL, IID_PPV_ARGS(&pFileOpen));
-    
-    if (SUCCEEDED(hr)) {
-        COMDLG_FILTERSPEC rgSpec[] = {
-            { L"Image Files", L"*.png;*.jpg;*.bmp;*.gif" }
-        };
-        pFileOpen->SetFileTypes(1, rgSpec);
-
-        hr = pFileOpen->Show(hwnd);
-
-        if (SUCCEEDED(hr)) {
-            Microsoft::WRL::ComPtr<IShellItem> pItem;
-            hr = pFileOpen->GetResult(&pItem);
-
-            if (SUCCEEDED(hr)) {
-                PWSTR pszFilePath;
-                hr = pItem->GetDisplayName(SIGDN_FILESYSPATH, &pszFilePath);
-
-                if (SUCCEEDED(hr)) {
-                    // Load image
-                    Gdiplus::Bitmap* loadedImage = new Gdiplus::Bitmap(pszFilePath);
-                    
-                    if (loadedImage->GetLastStatus() == Gdiplus::Ok) {
-                        // Clear canvas
-                        HBRUSH whiteBrush = CreateSolidBrush(RGB(255, 255, 255));
-                        RECT rect = {0, 0, width, height};
-                        FillRect(hPermanentDC, &rect, whiteBrush);
-                        DeleteObject(whiteBrush);
-                        
-                        Gdiplus::Graphics graphics(hPermanentDC);
-                        graphics.DrawImage(loadedImage, 0, 0, width, height);
-                        
-                        InvalidateRect(hwnd, NULL, TRUE);
-                        UpdateWindow(hwnd);
-                        
-                        MessageBox(hwnd, L"Image loaded!", L"Success", MB_OK);
-                    } else {
-                        MessageBox(hwnd, L"Failed to load image", L"Error", MB_OK);
-                    }
-                    
-                    delete loadedImage;
-                    CoTaskMemFree(pszFilePath);
-                }
-            }
-        }
-    }
-}
-
-void SaveFile(HWND hwnd, HBITMAP hBitmap)
-{
-    Microsoft::WRL::ComPtr<IFileSaveDialog> pFileSave;
-    HRESULT hr = CoCreateInstance(CLSID_FileSaveDialog, NULL, CLSCTX_ALL, IID_PPV_ARGS(&pFileSave));
-    if (SUCCEEDED(hr))
-    {
-        COMDLG_FILTERSPEC rgSpec[]={
-            { L"PNG Files", L"*.png" },
-            { L"JPEG Files", L"*.jpg" },
-            { L"Bitmap Files", L"*.bmp" }
-        };
-        pFileSave->SetFileTypes(3, rgSpec);
-        pFileSave->SetDefaultExtension(L"png");
-
-        hr = pFileSave->Show(hwnd);
-
-        if(SUCCEEDED(hr)){
-            Microsoft::WRL::ComPtr<IShellItem> pItem;
-            hr = pFileSave->GetResult(&pItem);
-
-            if(SUCCEEDED(hr)){
-                PWSTR pszFilePath;
-                hr = pItem->GetDisplayName(SIGDN_FILESYSPATH, &pszFilePath);
-
-                if(SUCCEEDED(hr)){
-                    Gdiplus::Bitmap* gdipBitmap = new Gdiplus::Bitmap(hBitmap, NULL);
-
-                    CLSID encoderClsid;
-                    GetEncoderClsid(L"image/png", &encoderClsid);
-                    gdipBitmap->Save(pszFilePath, &encoderClsid, NULL);
-
-                    MessageBox((hwnd), L"File saved!", L"Success", MB_OK);
-                    CoTaskMemFree(pszFilePath);
-                }
-            }
-        }
-    }
+void UpdatePen(){
+    if (gDrawingState.pen) delete gDrawingState.pen;
+    gDrawingState.pen = new Gdiplus::Pen(gDrawingState.penColor, gDrawingState.penWidth);
 }
