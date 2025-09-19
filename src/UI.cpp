@@ -13,18 +13,23 @@ Theme currentTheme;
 
 Gdiplus::Rect canvas;
 
-
 void Interface(Gdiplus::Graphics& g, HWND hwnd){
     RECT clientRect;
     GetClientRect(hwnd, &clientRect);
 
     // draw canvasBitmap
-    int center_X = (clientRect.right / 2) / 2;
-    int center_Y =  ((clientRect.bottom / 2) -100) / 2;
+    
+    int border = 25; //border from canvas to window
+    int center_X = (clientRect.right / 2) - (canvasBitmap->GetWidth() / 2);
+    int center_Y = ((clientRect.bottom + 100) / 2) - (canvasBitmap->GetHeight() / 2); //toolbar line= 100;
+
+
+    center_X = (center_X >= border ) ? center_X : border;
+    center_Y = (center_Y >= 100+border) ? center_Y : 100+border;
 
     canvas = Gdiplus::Rect(center_X, center_Y, canvasBitmap->GetWidth(), canvasBitmap->GetHeight());
-    g.DrawImage(previewBitmap, canvas);
 
+    g.DrawImage(previewBitmap, canvas);
     //toolbar 
     Gdiplus::SolidBrush toolbar(Gdiplus::Color::MakeARGB(255, 37, 41, 40));
     g.FillRectangle(&toolbar, 0, 0, clientRect.right, 100);

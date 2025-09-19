@@ -22,26 +22,26 @@ static COLORREF customColors[16];
 void Drawing (HWND hwnd, Gdiplus::Rect canvas, Gdiplus::Graphics* g, Gdiplus::Point pStart, Gdiplus::Point pEnd)
 {    
     static Gdiplus::Point pPrevious;
-    Gdiplus::Point one = {pStart.X - canvas.X, pStart.Y - canvas.Y};
-    Gdiplus::Point two = {pEnd.X - canvas.X, pEnd.Y - canvas.Y};
+    Gdiplus::Point canvasStart = {pStart.X - canvas.X, pStart.Y - canvas.Y};
+    Gdiplus::Point canvasEnd = {pEnd.X - canvas.X, pEnd.Y - canvas.Y};
 
-    int width = abs(two.X - one.X);
-    int height = abs(two.Y - one.Y);
+    int width = abs(canvasEnd.X - canvasStart.X);
+    int height = abs(canvasEnd.Y - canvasStart.Y);
     
     int side = std::min(abs(width), abs(height));
 
-    Gdiplus::Point upLeft(std::min(one.X, two.X), std::min(one.Y, two.Y));
+    Gdiplus::Point upLeft(std::min(canvasStart.X, canvasEnd.X), std::min(canvasStart.Y, canvasEnd.Y));
 
-    int squareWidth = (two.X >= one.X) ? side : -side;
-    int squareHeight = (two.Y >= one.Y) ? side : -side;
+    int squareWidth = (canvasEnd.X >= canvasStart.X) ? side : -side;
+    int squareHeight = (canvasEnd.Y >= canvasStart.Y) ? side : -side;
     
     Gdiplus::Point squareTopLeft;
-    squareTopLeft.X = (two.X >= one.X) ? one.X : one.X - side;
-    squareTopLeft.Y = (two.Y >= one.Y) ? one.Y : one.Y - side;
+    squareTopLeft.X = (canvasEnd.X >= canvasStart.X) ? canvasStart.X : canvasStart.X - side;
+    squareTopLeft.Y = (canvasEnd.Y >= canvasStart.Y) ? canvasStart.Y : canvasStart.Y - side;
 
 
     if (newStroke) {
-        pPrevious = one;
+        pPrevious = canvasStart;
         newStroke  = false;
     }
 
@@ -50,14 +50,14 @@ void Drawing (HWND hwnd, Gdiplus::Rect canvas, Gdiplus::Graphics* g, Gdiplus::Po
         switch (currentTool){
             case TOOL_PENCIL:
             {
-                g->DrawLine(gDrawingState.pen, pPrevious, two);
+                g->DrawLine(gDrawingState.pen, pPrevious, canvasEnd);
             }
             break;
             case TOOL_ERASER:
             {
                 
                 Gdiplus::Pen eraser(Gdiplus::Color(255, 250, 255, 255), gDrawingState.penWidth);
-                g->DrawLine(&eraser, pPrevious, two);
+                g->DrawLine(&eraser, pPrevious, canvasEnd);
             }
             break;
             case SHAPE_RECTANGLE:
@@ -84,12 +84,12 @@ void Drawing (HWND hwnd, Gdiplus::Rect canvas, Gdiplus::Graphics* g, Gdiplus::Po
             case SHAPE_LINE:
             {
                 previewGraphics->DrawImage(canvasBitmap, 0, 0, canvas.Width, canvas.Height);
-                g->DrawLine(gDrawingState.pen, one, two);
+                g->DrawLine(gDrawingState.pen, canvasStart, canvasEnd);
             }
             break;
         }
     }
-    pPrevious = two;
+    pPrevious = canvasEnd;
 
     RECT newCanvas = ToRECT(canvas);
     InvalidateRect(hwnd, &newCanvas, FALSE);

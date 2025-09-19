@@ -131,7 +131,7 @@ LRESULT CALLBACK WindowProc(HWND hwnd, UINT uMsg, WPARAM wp, LPARAM lp){
         }
         case WM_SIZE:
         {
-            CreateCanvasBitmap(hwnd);
+            InvalidateRect(hwnd, NULL, TRUE);
             return 0;
         }
         case WM_LBUTTONDOWN:
