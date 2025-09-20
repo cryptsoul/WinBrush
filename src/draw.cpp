@@ -55,7 +55,6 @@ void Drawing (HWND hwnd, Gdiplus::Rect canvas, Gdiplus::Graphics* g, Gdiplus::Po
             break;
             case TOOL_ERASER:
             {
-                
                 Gdiplus::Pen eraser(Gdiplus::Color(255, 250, 255, 255), gDrawingState.penWidth);
                 g->DrawLine(&eraser, pPrevious, canvasEnd);
             }

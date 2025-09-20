@@ -16,7 +16,6 @@ LRESULT CALLBACK WindowProc(HWND hwnd, UINT uMsg, WPARAM wp, LPARAM lp){
     static Gdiplus::Point pStart;
     static Gdiplus::Point pEnd;
 
-
     switch (uMsg)
     {
         case WM_COMMAND:
@@ -24,12 +23,14 @@ LRESULT CALLBACK WindowProc(HWND hwnd, UINT uMsg, WPARAM wp, LPARAM lp){
             switch (wp)
             {
                 case  ID_MENU_NEW:
+                {
+                    CreateCanvasBitmap(hwnd);
+                    InvalidateRect(hwnd, FALSE, FALSE);
+                }
                     return 0;
                 case   ID_MENU_OPEN:
                 {
                     OpenFile(hwnd, canvas, previewGraphics, canvas.Width, canvas.Height);
-
-
                 }
                     return 0;
                 case  ID_MENU_SAVE:
@@ -148,10 +149,9 @@ LRESULT CALLBACK WindowProc(HWND hwnd, UINT uMsg, WPARAM wp, LPARAM lp){
             }
             else
             {
-                    int x = GET_X_LPARAM(lp);
-                    int y = GET_Y_LPARAM(lp);
+                int x = GET_X_LPARAM(lp);
+                int y = GET_Y_LPARAM(lp);
                 Gdiplus::Point clickPoint(x, y);
-
                 for (int i = 0; i<20; i++){
                     if(boxes[i].rect.Contains(clickPoint)){
                         gDrawingState.penColor = boxes[i].color;
@@ -165,12 +165,19 @@ LRESULT CALLBACK WindowProc(HWND hwnd, UINT uMsg, WPARAM wp, LPARAM lp){
         case WM_MOUSEMOVE:
         {
             pMouse = {LOWORD(lp), HIWORD(lp)};
+            pEnd = pMouse;
             if(fDraw && (wp & MK_LBUTTON))
             {
-                if(canvas.Contains(pMouse)){
-                    pEnd = pMouse;
+                if(canvas.Contains(pMouse))
+                {
                     Drawing(hwnd, canvas, previewGraphics, pStart, pEnd);
                 }
+                else if (currentTool == TOOL_PENCIL || currentTool == TOOL_ERASER)
+                {
+                    newStroke = true;
+                    pStart = pMouse;
+                }
+
             }
             return 0;
         }
