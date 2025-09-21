@@ -9,11 +9,48 @@ void AddMenus(HWND hwnd )
 {
     HMENU hMenu = CreateMenu();
     HMENU hFileMenu = CreateMenu();
+    HMENU hEditMenu = CreateMenu();
+    HMENU hHelpMenu = CreateMenu();
+    HMENU hExtrasMenu = CreateMenu();
+    HMENU hThemesSubMenu = CreateMenu();
 
     AppendMenu(hMenu, MF_POPUP, (UINT_PTR)hFileMenu, L"File");
     AppendMenu (hFileMenu, MF_STRING,  ID_MENU_NEW, L"New");
     AppendMenu (hFileMenu, MF_STRING,   ID_MENU_OPEN, L"Open");
     AppendMenu(hFileMenu, MF_STRING,  ID_MENU_SAVE, L"Save");
+
+    AppendMenu(hMenu, MF_POPUP, (UINT_PTR)hEditMenu, L"Edit");
+    AppendMenu (hEditMenu, MF_STRING, ID_MENU_UNDO, L"Undo");
+    AppendMenu (hEditMenu, MF_STRING, ID_MENU_REPEAT, L"Repeat");
+    AppendMenu (hEditMenu, MF_STRING, ID_MENU_HISTORY, L"History");
+    AppendMenu (hEditMenu, MF_SEPARATOR, 0, NULL);
+    AppendMenu (hEditMenu, MF_STRING, ID_MENU_CUT, L"Cut");
+    AppendMenu (hEditMenu, MF_STRING, ID_MENU_COPY, L"Copy");
+    AppendMenu (hEditMenu, MF_STRING, ID_MENU_PASTE, L"Paste");
+    AppendMenu (hEditMenu, MF_STRING, ID_MENU_CLEAR_SELECT, L"Clear Selection");
+    AppendMenu (hEditMenu, MF_STRING, ID_MENU_SELECT_ALL, L"Selest All");
+
+    AppendMenu(hMenu, MF_POPUP, (UINT_PTR)hHelpMenu, L"View");
+    AppendMenu (hHelpMenu, MF_STRING, ID_MENU_HELP_TOPICS, L"Help Topics");
+    AppendMenu (hHelpMenu, MF_SEPARATOR, 0, NULL);
+    AppendMenu (hHelpMenu, MF_STRING, ID_MENU_ABOUT, L"About WinBrush");
+
+
+    AppendMenu(hMenu, MF_POPUP, (UINT_PTR)hExtrasMenu, L"Extras");
+    AppendMenu (hExtrasMenu, MF_STRING, ID_MENU_HISTORY, L"History");
+    AppendMenu (hExtrasMenu, MF_STRING, ID_MENU_GIF, L"Render History As GIF");
+    AppendMenu (hExtrasMenu, MF_SEPARATOR, 0, NULL);
+    AppendMenu (hExtrasMenu, MF_CHECKED, ID_MENU_RANDOM, L"Draw Randomly");
+    AppendMenu (hExtrasMenu, MF_SEPARATOR, 0, NULL);
+    AppendMenu (hExtrasMenu, MF_POPUP, (UINT_PTR)hThemesSubMenu, L"Themes");
+    AppendMenu (hThemesSubMenu, MF_STRING, ID_MENU_THEMES, L"Classic Light");
+    AppendMenu (hThemesSubMenu, MF_STRING, ID_MENU_THEMES, L"Classic Dark");
+
+
+    AppendMenu (hExtrasMenu, MF_CHECKED, ID_MENU_ENLARGE_UI, L"Enlarge UI");
+
+
+
 
     SetMenu(hwnd, hMenu);
 }
