@@ -12,11 +12,12 @@
 
 #include <algorithm>
 #undef min
+#undef max
 
 ToolType currentTool = TOOL_PENCIL;
 DrawingState gDrawingState = {nullptr, Gdiplus::Color(255, 0, 0, 0), 1};
 bool newStroke = true;
-static bool check = true;
+bool showPreview = true;
 static COLORREF customColors[16];
 
 void Drawing (HWND hwnd, Gdiplus::Rect canvas, Gdiplus::Graphics* g, Gdiplus::Point pStart, Gdiplus::Point pEnd)
@@ -39,18 +40,44 @@ void Drawing (HWND hwnd, Gdiplus::Rect canvas, Gdiplus::Graphics* g, Gdiplus::Po
     squareTopLeft.X = (canvasEnd.X >= canvasStart.X) ? canvasStart.X : canvasStart.X - side;
     squareTopLeft.Y = (canvasEnd.Y >= canvasStart.Y) ? canvasStart.Y : canvasStart.Y - side;
 
+    int circleRadius = gDrawingState.penWidth / 2;
 
     if (newStroke) {
         pPrevious = canvasStart;
         newStroke  = false;
     }
 
+    int addX = canvasEnd.X - pPrevious.X;
+    int addY = canvasEnd.Y - pPrevious.Y;
+    
     if(canvas.Contains(pEnd))
     {
         switch (currentTool){
             case TOOL_PENCIL:
             {
-                g->DrawLine(gDrawingState.pen, pPrevious, canvasEnd);
+                if (!(showPreview))
+                {
+                    if (pPrevious.X == canvasEnd.X) {
+                        for (int y = std::min(pPrevious.Y, canvasEnd.Y); y <= std::max(pPrevious.Y, canvasEnd.Y); y++) {
+                            g->DrawEllipse(gDrawingState.pen, pPrevious.X, y, gDrawingState.penWidth, gDrawingState.penWidth);
+                        }
+                    } else if (pPrevious.Y == canvasEnd.Y) {
+                        for (int x = std::min(pPrevious.X, canvasEnd.X); x <= std::max(pPrevious.X, canvasEnd.X); x++) {
+                            g->DrawEllipse(gDrawingState.pen, x, pPrevious.Y, gDrawingState.penWidth, gDrawingState.penWidth);
+                        }
+                    } else {
+                        float m = (float)(canvasEnd.Y - pPrevious.Y) / (canvasEnd.X - pPrevious.X);
+                        float b = pPrevious.Y - m * pPrevious.X;
+                        
+                        for (int x = std::min(pPrevious.X, canvasEnd.X); x <= std::max(pPrevious.X, canvasEnd.X); x++) {
+                            int y = (int)(m * x + b);
+                            g->DrawEllipse(gDrawingState.pen, x, y, gDrawingState.penWidth, gDrawingState.penWidth);
+                        }
+                    }
+                }
+                else g->DrawEllipse(gDrawingState.pen, pPrevious.X - circleRadius, pPrevious.Y - circleRadius,   gDrawingState.penWidth, gDrawingState.penWidth);
+                    
+                //g->DrawLine(gDrawingState.pen, pPrevious, canvasEnd);
             }
             break;
             case TOOL_ERASER:
@@ -89,9 +116,10 @@ void Drawing (HWND hwnd, Gdiplus::Rect canvas, Gdiplus::Graphics* g, Gdiplus::Po
         }
     }
     pPrevious = canvasEnd;
-
-    RECT newCanvas = ToRECT(canvas);
-    InvalidateRect(hwnd, &newCanvas, FALSE);
+    if(!showPreview){
+        RECT newCanvas = ToRECT(canvas);
+        InvalidateRect(hwnd, &newCanvas, FALSE);
+    } 
 }
 
 RECT ToRECT(const Gdiplus::Rect& r){

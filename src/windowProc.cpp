@@ -9,6 +9,9 @@
 #include "File.h"
 #include <windowsx.h>
 
+    static Gdiplus::Graphics* graphics = nullptr;
+
+
 LRESULT CALLBACK WindowProc(HWND hwnd, UINT uMsg, WPARAM wp, LPARAM lp){
     
     static BOOL fDraw = FALSE;
@@ -166,8 +169,11 @@ LRESULT CALLBACK WindowProc(HWND hwnd, UINT uMsg, WPARAM wp, LPARAM lp){
         {
             pMouse = {LOWORD(lp), HIWORD(lp)};
             pEnd = pMouse;
+
+
             if(fDraw && (wp & MK_LBUTTON))
             {
+                showPreview = false;
                 if(canvas.Contains(pMouse))
                 {
                     Drawing(hwnd, canvas, previewGraphics, pStart, pEnd);
@@ -177,8 +183,24 @@ LRESULT CALLBACK WindowProc(HWND hwnd, UINT uMsg, WPARAM wp, LPARAM lp){
                     newStroke = true;
                     pStart = pMouse;
                 }
-
             }
+            else if(canvas.Contains(pMouse) && (currentTool == TOOL_PENCIL || currentTool == TOOL_ERASER))
+            { 
+                showPreview = true;
+
+                previewGraphics->DrawImage(canvasBitmap, 0, 0, canvas.Width, canvas.Height);
+                RECT rect = ToRECT(canvas);
+                InvalidateRect(hwnd, &rect, FALSE);
+
+                Drawing(hwnd, canvas, previewGraphics, pStart, pEnd);
+            }
+            else {
+                previewGraphics->DrawImage(canvasBitmap, 0, 0, canvas.Width, canvas.Height);
+                RECT rect = ToRECT(canvas);
+                InvalidateRect(hwnd, &rect, FALSE);
+            }
+            
+            
             return 0;
         }
         case WM_LBUTTONUP:
@@ -209,7 +231,6 @@ LRESULT CALLBACK WindowProc(HWND hwnd, UINT uMsg, WPARAM wp, LPARAM lp){
             PAINTSTRUCT ps;
             HDC hdc = BeginPaint(hwnd, &ps);
             Gdiplus::Graphics g(hdc);
-
             Interface(g, hwnd);
 
             EndPaint(hwnd, &ps);

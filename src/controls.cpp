@@ -35,7 +35,6 @@ void AddMenus(HWND hwnd )
     AppendMenu (hHelpMenu, MF_SEPARATOR, 0, NULL);
     AppendMenu (hHelpMenu, MF_STRING, ID_MENU_ABOUT, L"About WinBrush");
 
-
     AppendMenu(hMenu, MF_POPUP, (UINT_PTR)hExtrasMenu, L"Extras");
     AppendMenu (hExtrasMenu, MF_STRING, ID_MENU_HISTORY, L"History");
     AppendMenu (hExtrasMenu, MF_STRING, ID_MENU_GIF, L"Render History As GIF");
@@ -45,12 +44,7 @@ void AddMenus(HWND hwnd )
     AppendMenu (hExtrasMenu, MF_POPUP, (UINT_PTR)hThemesSubMenu, L"Themes");
     AppendMenu (hThemesSubMenu, MF_STRING, ID_MENU_THEMES, L"Classic Light");
     AppendMenu (hThemesSubMenu, MF_STRING, ID_MENU_THEMES, L"Classic Dark");
-
-
     AppendMenu (hExtrasMenu, MF_CHECKED, ID_MENU_ENLARGE_UI, L"Enlarge UI");
-
-
-
 
     SetMenu(hwnd, hMenu);
 }

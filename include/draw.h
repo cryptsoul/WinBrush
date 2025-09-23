@@ -23,6 +23,7 @@ extern DrawingState gDrawingState;
 
 extern ToolType currentTool;
 extern bool newStroke;
+extern bool showPreview;
 
 void Drawing (HWND, Gdiplus::Rect, Gdiplus::Graphics*, Gdiplus::Point pStart, Gdiplus::Point pEnd);
 RECT ToRECT(const Gdiplus::Rect&);
