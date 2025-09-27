@@ -9,7 +9,7 @@
 #include "File.h"
 #include <windowsx.h>
 
-    static Gdiplus::Graphics* graphics = nullptr;
+static Gdiplus::Graphics* graphics = nullptr;
 
 
 LRESULT CALLBACK WindowProc(HWND hwnd, UINT uMsg, WPARAM wp, LPARAM lp){
@@ -147,8 +147,11 @@ LRESULT CALLBACK WindowProc(HWND hwnd, UINT uMsg, WPARAM wp, LPARAM lp){
                 pEnd = pMouse;
                 newStroke = true;
                 previewGraphics->DrawImage(canvasBitmap, 0, 0, canvas.Width, canvas.Height);
+                Drawing(hwnd, canvas, previewGraphics, pStart, pEnd);
+
                 RECT rect = ToRECT(canvas);
                 InvalidateRect(hwnd, &rect, FALSE);
+                
             }
             else
             {
@@ -170,10 +173,15 @@ LRESULT CALLBACK WindowProc(HWND hwnd, UINT uMsg, WPARAM wp, LPARAM lp){
             pMouse = {LOWORD(lp), HIWORD(lp)};
             pEnd = pMouse;
 
-
             if(fDraw && (wp & MK_LBUTTON))
             {
-                showPreview = false;
+                if (showPreview){
+                    previewGraphics->DrawImage(canvasBitmap, 0, 0, canvas.Width, canvas.Height);
+                    RECT rect = ToRECT(canvas);
+                    InvalidateRect(hwnd, &rect, FALSE);
+                    showPreview = false;
+
+                }
                 if(canvas.Contains(pMouse))
                 {
                     Drawing(hwnd, canvas, previewGraphics, pStart, pEnd);
@@ -186,13 +194,14 @@ LRESULT CALLBACK WindowProc(HWND hwnd, UINT uMsg, WPARAM wp, LPARAM lp){
             }
             else if(canvas.Contains(pMouse) && (currentTool == TOOL_PENCIL || currentTool == TOOL_ERASER))
             { 
-                showPreview = true;
-
-                previewGraphics->DrawImage(canvasBitmap, 0, 0, canvas.Width, canvas.Height);
-                RECT rect = ToRECT(canvas);
-                InvalidateRect(hwnd, &rect, FALSE);
-
-                Drawing(hwnd, canvas, previewGraphics, pStart, pEnd);
+                // showPreview = true;
+                if (showPreview){
+                    previewGraphics->DrawImage(canvasBitmap, 0, 0, canvas.Width, canvas.Height);
+                    RECT rect = ToRECT(canvas);
+                    InvalidateRect(hwnd, &rect, FALSE);
+                    Drawing(hwnd, canvas, previewGraphics, pStart, pEnd);
+                }
+                
             }
             else {
                 previewGraphics->DrawImage(canvasBitmap, 0, 0, canvas.Width, canvas.Height);
@@ -200,12 +209,12 @@ LRESULT CALLBACK WindowProc(HWND hwnd, UINT uMsg, WPARAM wp, LPARAM lp){
                 InvalidateRect(hwnd, &rect, FALSE);
             }
             
-            
             return 0;
         }
         case WM_LBUTTONUP:
         {
             fDraw = FALSE;
+            showPreview = true;
             canvasGraphics->DrawImage(previewBitmap, 0, 0, canvas.Width, canvas.Height);
             return 0;
         }
