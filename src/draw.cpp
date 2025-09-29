@@ -68,18 +68,33 @@ void Drawing (HWND hwnd, Gdiplus::Rect canvas, Gdiplus::Graphics* g, Gdiplus::Po
             {
                 gDrawingState.penColor = Gdiplus::Color(255, 250, 255, 255);
                 UpdatePen();
-
+ 
                 if (!(showPreview))
                 {
                     CustomeLine(g, pPrevious.X , pPrevious.Y, canvasEnd.X, canvasEnd.Y, circleRadius);
                 }
                 else g->DrawEllipse(gDrawingState.pen, pPrevious.X - circleRadius, pPrevious.Y - circleRadius,   gDrawingState.penWidth, gDrawingState.penWidth);
-                
+            }
+            break;
+            case TOOL_COLOR_PICKER:
+            {
+                previewGraphics->DrawImage(canvasBitmap, 0, 0, canvas.Width, canvas.Height);
+                RECT rect = ToRECT(canvas);
+                InvalidateRect(hwnd, &rect, FALSE);
+
+                Gdiplus::Color c;
+                canvasBitmap->GetPixel(canvasEnd.X, canvasEnd.Y, &c);
+                Gdiplus::Pen pen(Gdiplus::Color(255, 0, 0, 0), 2);
+                Gdiplus::SolidBrush brush(c);
+
+                Gdiplus::Rect r(canvasEnd.X + 10, canvasEnd.Y - 25, 25, 25);    
+                            
+                g->FillRectangle(&brush, r);
+                g->DrawRectangle(&pen, r);
             }
             break;
             case SHAPE_RECTANGLE:
             {
-
                 g->DrawImage(canvasBitmap, 0, 0, canvas.Width, canvas.Height);
                 if(GetAsyncKeyState(VK_SHIFT)&0x8000){
                     g->DrawRectangle(gDrawingState.pen, squareTopLeft.X, squareTopLeft.Y, abs(side), abs(side));
@@ -148,7 +163,7 @@ void UpdatePen(){
 }
 
 void CustomeLine(Gdiplus::Graphics* g, int x1, int y1, int x2, int y2, int r){
-    if (x1== x2) {
+    if (x1 == x2) {
         for (int y = std::min(y1, y2); y <= std::max(y1, y2); y++) {
             g->DrawEllipse(gDrawingState.pen, x1 - r, y - r, gDrawingState.penWidth, gDrawingState.penWidth);
         }

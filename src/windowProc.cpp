@@ -119,7 +119,6 @@ LRESULT CALLBACK WindowProc(HWND hwnd, UINT uMsg, WPARAM wp, LPARAM lp){
         }
         case WM_CREATE:
         {
-            
             AddMenus(hwnd);
             AddControls(hwnd);
             LoadThemes();
@@ -151,7 +150,6 @@ LRESULT CALLBACK WindowProc(HWND hwnd, UINT uMsg, WPARAM wp, LPARAM lp){
 
                 RECT rect = ToRECT(canvas);
                 InvalidateRect(hwnd, &rect, FALSE);
-                
             }
             else
             {
@@ -180,42 +178,40 @@ LRESULT CALLBACK WindowProc(HWND hwnd, UINT uMsg, WPARAM wp, LPARAM lp){
                     RECT rect = ToRECT(canvas);
                     InvalidateRect(hwnd, &rect, FALSE);
                     showPreview = false;
-
                 }
                 if(canvas.Contains(pMouse))
                 {
                     Drawing(hwnd, canvas, previewGraphics, pStart, pEnd);
                 }
-                else if (currentTool == TOOL_PENCIL || currentTool == TOOL_ERASER)
+                else if (currentTool == TOOL_PENCIL || currentTool == TOOL_ERASER || currentTool == TOOL_COLOR_PICKER)
                 {
                     newStroke = true;
                     pStart = pMouse;
                 }
             }
-            else if(canvas.Contains(pMouse) && (currentTool == TOOL_PENCIL || currentTool == TOOL_ERASER))
+            else if(canvas.Contains(pMouse) && (currentTool == TOOL_PENCIL || currentTool == TOOL_ERASER || currentTool == TOOL_COLOR_PICKER))
             { 
-                // showPreview = true;
                 if (showPreview){
                     previewGraphics->DrawImage(canvasBitmap, 0, 0, canvas.Width, canvas.Height);
                     RECT rect = ToRECT(canvas);
                     InvalidateRect(hwnd, &rect, FALSE);
                     Drawing(hwnd, canvas, previewGraphics, pStart, pEnd);
                 }
-                
             }
             else {
                 previewGraphics->DrawImage(canvasBitmap, 0, 0, canvas.Width, canvas.Height);
                 RECT rect = ToRECT(canvas);
                 InvalidateRect(hwnd, &rect, FALSE);
             }
-            
             return 0;
         }
         case WM_LBUTTONUP:
         {
             fDraw = FALSE;
             showPreview = true;
-            canvasGraphics->DrawImage(previewBitmap, 0, 0, canvas.Width, canvas.Height);
+            if(currentTool != TOOL_COLOR_PICKER){
+                canvasGraphics->DrawImage(previewBitmap, 0, 0, canvas.Width, canvas.Height);
+            }
             return 0;
         }
         case WM_RBUTTONDOWN:

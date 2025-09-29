@@ -18,18 +18,14 @@ void Interface(Gdiplus::Graphics& g, HWND hwnd){
     GetClientRect(hwnd, &clientRect);
 
     // draw canvasBitmap
-    
     int border = 25; //border from canvas to window
     int center_X = (clientRect.right / 2) - (canvasBitmap->GetWidth() / 2);
     int center_Y = ((clientRect.bottom + 100) / 2) - (canvasBitmap->GetHeight() / 2); //toolbar line= 100;
-
-
     center_X = (center_X >= border ) ? center_X : border;
     center_Y = (center_Y >= 100+border) ? center_Y : 100+border;
-
     canvas = Gdiplus::Rect(center_X, center_Y, canvasBitmap->GetWidth(), canvasBitmap->GetHeight());
-
     g.DrawImage(previewBitmap, canvas);
+
     //toolbar 
     Gdiplus::SolidBrush toolbar(Gdiplus::Color::MakeARGB(255, 37, 41, 40));
     g.FillRectangle(&toolbar, 0, 0, clientRect.right, 100);
@@ -39,6 +35,7 @@ void Interface(Gdiplus::Graphics& g, HWND hwnd){
     g.DrawLine(&divider, 150, 6, 150, 96);
     g.DrawLine(&divider, 448, 6, 448, 96);
     g.DrawLine(&divider, 660, 6, 660, 96);
+    g.DrawLine(&divider, 812, 6, 812, 96);
 
     //basic colors
     Gdiplus::Color basicColor[]={
