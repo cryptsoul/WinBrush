@@ -11,7 +11,6 @@
 
 static Gdiplus::Graphics* graphics = nullptr;
 
-
 LRESULT CALLBACK WindowProc(HWND hwnd, UINT uMsg, WPARAM wp, LPARAM lp){
     
     static BOOL fDraw = FALSE;
@@ -317,4 +316,3 @@ LRESULT CALLBACK WindowProc(HWND hwnd, UINT uMsg, WPARAM wp, LPARAM lp){
     }
     return DefWindowProc(hwnd, uMsg, wp, lp);
 }
-

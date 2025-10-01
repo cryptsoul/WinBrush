@@ -3,7 +3,6 @@
 #include "draw.h"
 #include "canvas.h"
 
-
 #include <cstdio>
 #include <format>
 #include <initializer_list>
@@ -87,8 +86,8 @@ void Drawing (HWND hwnd, Gdiplus::Rect canvas, Gdiplus::Graphics* g, Gdiplus::Po
                 Gdiplus::Pen pen(Gdiplus::Color(255, 0, 0, 0), 2);
                 Gdiplus::SolidBrush brush(c);
 
-                Gdiplus::Rect r(canvasEnd.X + 10, canvasEnd.Y - 25, 25, 25);    
-                            
+                Gdiplus::Rect r(canvasEnd.X - 10, canvasEnd.Y - 25, 25, 25);    
+
                 g->FillRectangle(&brush, r);
                 g->DrawRectangle(&pen, r);
             }
