@@ -9,6 +9,7 @@
 #include <iostream>
 #include <string>
 
+
 #include <algorithm>
 #undef min
 #undef max
@@ -18,6 +19,8 @@ DrawingState gDrawingState = {nullptr, Gdiplus::Color(255, 0, 0, 0), 1};
 bool newStroke = true;
 bool showPreview = true;
 static COLORREF customColors[16];
+
+
 
 void Drawing (HWND hwnd, Gdiplus::Rect canvas, Gdiplus::Graphics* g, Gdiplus::Point pStart, Gdiplus::Point pEnd)
 {    
@@ -91,6 +94,10 @@ void Drawing (HWND hwnd, Gdiplus::Rect canvas, Gdiplus::Graphics* g, Gdiplus::Po
                 g->FillRectangle(&brush, r);
                 g->DrawRectangle(&pen, r);
             }
+            case TOOL_TEXT:
+            {
+                CustomFontBox(hwnd);
+            }
             break;
             case SHAPE_RECTANGLE:
             {
@@ -118,6 +125,7 @@ void Drawing (HWND hwnd, Gdiplus::Rect canvas, Gdiplus::Graphics* g, Gdiplus::Po
                 g->DrawLine(gDrawingState.pen, canvasStart, canvasEnd);
             }
             break;
+            
         }
     }
     pPrevious = canvasEnd;
@@ -180,3 +188,31 @@ void CustomeLine(Gdiplus::Graphics* g, int x1, int y1, int x2, int y2, int r){
         }
     }
 }   
+
+FontSettings currentFont = {nullptr, Gdiplus::Color(255, 0, 0, 0)};
+void CustomFontBox(HWND hwnd){
+    CHOOSEFONT cf = {};
+    LOGFONT lf = {};
+
+    cf.lStructSize = sizeof(cf);
+    cf.hwndOwner   = hwnd;
+    cf.lpLogFont   = &lf;
+    cf.Flags       = CF_SCREENFONTS | CF_EFFECTS | CF_INITTOLOGFONTSTRUCT;
+    cf.rgbColors   = RGB(0, 0, 0);
+
+    if (ChooseFont(&cf)) {
+        // User pressed OK and selected a font
+        HFONT hFont = CreateFontIndirect(&lf);
+        if (ChooseFont(&cf))
+        {
+            // Update color
+            currentFont.color = Gdiplus::Color(255, GetRValue(cf.rgbColors), GetGValue(cf.rgbColors), GetBValue(cf.rgbColors));
+            
+            // Create GDI+ Font from LOGFONT
+            HDC hdc = GetDC(hwnd);
+            if (currentFont.font) delete currentFont.font;
+            currentFont.font = new Gdiplus::Font(hdc, &lf);
+            ReleaseDC(hwnd, hdc);
+        }
+    }
+}

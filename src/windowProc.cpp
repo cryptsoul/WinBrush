@@ -29,33 +29,33 @@ LRESULT CALLBACK WindowProc(HWND hwnd, UINT uMsg, WPARAM wp, LPARAM lp){
                     CreateCanvasBitmap(hwnd);
                     InvalidateRect(hwnd, FALSE, FALSE);
                 }
-                    return 0;
+                return 0;
                 case   ID_MENU_OPEN:
                 {
                     OpenFile(hwnd, canvas, previewGraphics, canvas.Width, canvas.Height);
                 }
-                    return 0;
+                return 0;
                 case  ID_MENU_SAVE:
                 {
                     SaveFile(hwnd, canvasBitmap);
                 }
-                    return 0;
+                return 0;
                 case ID_BTN_CUSTOM_COLOR:
                 {
                    CustomColorBox(hwnd);
                    UpdatePen();
                 }
-                    return 0;
+                return 0;
                 case  ID_BTN_RECTANGLE:
                 {
                     currentTool = SHAPE_RECTANGLE;
                 }
-                    return 0;
+                return 0;
                 case  ID_BTN_ELLIPSE:
                 {
                     currentTool = SHAPE_ELLIPSE;
                 }
-                    return 0;
+                return 0;
                 case  ID_BTN_LINE:
                 {
                     currentTool = SHAPE_LINE;

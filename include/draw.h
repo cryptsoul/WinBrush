@@ -21,6 +21,12 @@ struct DrawingState{
 };
 extern DrawingState gDrawingState;
 
+struct FontSettings {
+    Gdiplus::Font* font;
+    Gdiplus::Color color;
+};
+extern FontSettings currentFont;
+
 extern ToolType currentTool;
 extern bool newStroke;
 extern bool showPreview;
@@ -29,4 +35,5 @@ void Drawing (HWND, Gdiplus::Rect, Gdiplus::Graphics*, Gdiplus::Point pStart, Gd
 RECT ToRECT(const Gdiplus::Rect&);
 void UpdatePen();
 void CustomColorBox(HWND);
+void CustomFontBox(HWND);
 void CustomeLine(Gdiplus::Graphics* g, int x1, int y1, int x2, int y2, int r);
