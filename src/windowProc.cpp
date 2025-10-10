@@ -176,7 +176,7 @@ LRESULT CALLBACK WindowProc(HWND hwnd, UINT uMsg, WPARAM wp, LPARAM lp){
                     previewGraphics->DrawImage(canvasBitmap, 0, 0, canvas.Width, canvas.Height);
                     RECT rect = ToRECT(canvas);
                     InvalidateRect(hwnd, &rect, FALSE);
-                    showPreview = false;
+                    if(currentTool != TOOL_TEXT) showPreview = false;
                 }
                 if(canvas.Contains(pMouse))
                 {
@@ -197,18 +197,13 @@ LRESULT CALLBACK WindowProc(HWND hwnd, UINT uMsg, WPARAM wp, LPARAM lp){
                     Drawing(hwnd, canvas, previewGraphics, pStart, pEnd);
                 }
             }
-            else {
-                previewGraphics->DrawImage(canvasBitmap, 0, 0, canvas.Width, canvas.Height);
-                RECT rect = ToRECT(canvas);
-                InvalidateRect(hwnd, &rect, FALSE);
-            }
             return 0;
         }
         case WM_LBUTTONUP:
         {
             fDraw = FALSE;
             showPreview = true;
-            if(currentTool != TOOL_COLOR_PICKER){
+            if(currentTool != TOOL_COLOR_PICKER && currentTool != TOOL_TEXT){
                 canvasGraphics->DrawImage(previewBitmap, 0, 0, canvas.Width, canvas.Height);
             }
             return 0;

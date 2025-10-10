@@ -61,21 +61,19 @@ void Drawing (HWND hwnd, Gdiplus::Rect canvas, Gdiplus::Graphics* g, Gdiplus::Po
             {
                 if (!(showPreview))
                 {
-                    CustomeLine(g, pPrevious.X, pPrevious.Y, canvasEnd.X, canvasEnd.Y, circleRadius);
+                    CustomeLine(g, pPrevious.X, pPrevious.Y, canvasEnd.X, canvasEnd.Y, circleRadius, gDrawingState.pen);
                 }
                 else g->DrawEllipse(gDrawingState.pen, pPrevious.X - circleRadius, pPrevious.Y - circleRadius, gDrawingState.penWidth, gDrawingState.penWidth);
             }
             break;
             case TOOL_ERASER:
             {
-                gDrawingState.penColor = Gdiplus::Color(255, 250, 255, 255);
-                UpdatePen();
- 
+                Gdiplus::Pen eraser(Gdiplus::Color(255, 250, 255, 255), gDrawingState.penWidth);
                 if (!(showPreview))
                 {
-                    CustomeLine(g, pPrevious.X , pPrevious.Y, canvasEnd.X, canvasEnd.Y, circleRadius);
+                    CustomeLine(g, pPrevious.X , pPrevious.Y, canvasEnd.X, canvasEnd.Y, circleRadius, &eraser);
                 }
-                else g->DrawEllipse(gDrawingState.pen, pPrevious.X - circleRadius, pPrevious.Y - circleRadius,   gDrawingState.penWidth, gDrawingState.penWidth);
+                else g->DrawEllipse(&eraser, pPrevious.X - circleRadius, pPrevious.Y - circleRadius,   gDrawingState.penWidth, gDrawingState.penWidth);
             }
             break;
             case TOOL_COLOR_PICKER:
@@ -94,9 +92,16 @@ void Drawing (HWND hwnd, Gdiplus::Rect canvas, Gdiplus::Graphics* g, Gdiplus::Po
                 g->FillRectangle(&brush, r);
                 g->DrawRectangle(&pen, r);
             }
+            break;
             case TOOL_TEXT:
             {
-                CustomFontBox(hwnd);
+                Gdiplus::Pen dashPen(Gdiplus::Color(255, 0, 0, 0), 1);
+                dashPen.SetDashStyle(Gdiplus::DashStyleDash);
+                dashPen.SetDashStyle(Gdiplus::DashStyleDash);
+                g->DrawImage(canvasBitmap, 0, 0, canvas.Width, canvas.Height);
+                g->DrawRectangle(&dashPen, upLeft.X, upLeft.Y, width, height);
+                
+                
             }
             break;
             case SHAPE_RECTANGLE:
@@ -169,14 +174,14 @@ void UpdatePen(){
     gDrawingState.pen = new Gdiplus::Pen(gDrawingState.penColor, gDrawingState.penWidth);
 }
 
-void CustomeLine(Gdiplus::Graphics* g, int x1, int y1, int x2, int y2, int r){
+void CustomeLine(Gdiplus::Graphics* g, int x1, int y1, int x2, int y2, int r, Gdiplus::Pen* pen){
     if (x1 == x2) {
         for (int y = std::min(y1, y2); y <= std::max(y1, y2); y++) {
-            g->DrawEllipse(gDrawingState.pen, x1 - r, y - r, gDrawingState.penWidth, gDrawingState.penWidth);
+            g->DrawEllipse(pen, x1 - r, y - r, gDrawingState.penWidth, gDrawingState.penWidth);
         }
     } else if (y1 == y2) {
         for (int x = std::min(x1, x2); x <= std::max(x1, x2); x++) {
-            g->DrawEllipse(gDrawingState.pen, x - r, y1 - r, gDrawingState.penWidth, gDrawingState.penWidth);
+            g->DrawEllipse(pen, x - r, y1 - r, gDrawingState.penWidth, gDrawingState.penWidth);
         }
     } else {
         float m = (float)(y2 - y1) / (x2 - x1);
@@ -184,7 +189,7 @@ void CustomeLine(Gdiplus::Graphics* g, int x1, int y1, int x2, int y2, int r){
         
         for (int x = std::min(x1, x2); x <= std::max(x1, x2); x++) {
             int y = (int)(m * x + b);
-            g->DrawEllipse(gDrawingState.pen, x - r, y - r, gDrawingState.penWidth, gDrawingState.penWidth);
+            g->DrawEllipse(pen, x - r, y - r, gDrawingState.penWidth, gDrawingState.penWidth);
         }
     }
 }   
@@ -197,18 +202,16 @@ void CustomFontBox(HWND hwnd){
     cf.lStructSize = sizeof(cf);
     cf.hwndOwner   = hwnd;
     cf.lpLogFont   = &lf;
-    cf.Flags       = CF_SCREENFONTS | CF_EFFECTS | CF_INITTOLOGFONTSTRUCT;
+    cf.Flags       = CF_SCREENFONTS | CF_EFFECTS | CF_INITTOLOGFONTSTRUCT; //CF_APPLY
     cf.rgbColors   = RGB(0, 0, 0);
 
     if (ChooseFont(&cf)) {
-        // User pressed OK and selected a font
         HFONT hFont = CreateFontIndirect(&lf);
         if (ChooseFont(&cf))
         {
             // Update color
             currentFont.color = Gdiplus::Color(255, GetRValue(cf.rgbColors), GetGValue(cf.rgbColors), GetBValue(cf.rgbColors));
             
-            // Create GDI+ Font from LOGFONT
             HDC hdc = GetDC(hwnd);
             if (currentFont.font) delete currentFont.font;
             currentFont.font = new Gdiplus::Font(hdc, &lf);
