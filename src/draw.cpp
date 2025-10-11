@@ -100,8 +100,7 @@ void Drawing (HWND hwnd, Gdiplus::Rect canvas, Gdiplus::Graphics* g, Gdiplus::Po
                 dashPen.SetDashStyle(Gdiplus::DashStyleDash);
                 g->DrawImage(canvasBitmap, 0, 0, canvas.Width, canvas.Height);
                 g->DrawRectangle(&dashPen, upLeft.X, upLeft.Y, width, height);
-                
-                
+
             }
             break;
             case SHAPE_RECTANGLE:
@@ -174,25 +173,38 @@ void UpdatePen(){
     gDrawingState.pen = new Gdiplus::Pen(gDrawingState.penColor, gDrawingState.penWidth);
 }
 
-void CustomeLine(Gdiplus::Graphics* g, int x1, int y1, int x2, int y2, int r, Gdiplus::Pen* pen){
-    if (x1 == x2) {
-        for (int y = std::min(y1, y2); y <= std::max(y1, y2); y++) {
-            g->DrawEllipse(pen, x1 - r, y - r, gDrawingState.penWidth, gDrawingState.penWidth);
-        }
-    } else if (y1 == y2) {
-        for (int x = std::min(x1, x2); x <= std::max(x1, x2); x++) {
-            g->DrawEllipse(pen, x - r, y1 - r, gDrawingState.penWidth, gDrawingState.penWidth);
-        }
-    } else {
-        float m = (float)(y2 - y1) / (x2 - x1);
-        float b = y1 - m * x1;
-        
-        for (int x = std::min(x1, x2); x <= std::max(x1, x2); x++) {
-            int y = (int)(m * x + b);
-            g->DrawEllipse(pen, x - r, y - r, gDrawingState.penWidth, gDrawingState.penWidth);
-        }
+void CustomeLine(Gdiplus::Graphics* g, int x1, int y1, int x2, int y2, int r, Gdiplus::Pen* pen) {
+    int dx = abs(x2 - x1);
+    int dy = abs(y2 - y1);
+
+    int sx = (x1 < x2) ? 1 : -1;
+    int sy = (y1 < y2) ? 1 : -1;
+
+    bool steep = dy > dx;
+    if (steep) {
+        std::swap(x1, y1);
+        std::swap(x2, y2);
+        std::swap(dx, dy);
+        std::swap(sx, sy);
     }
-}   
+
+    int err = 2 * dy - dx;
+    int x = x1, y = y1;
+
+    for (int i = 0; i <= dx; i++) {
+        if (steep)
+            g->DrawEllipse(pen, y - r, x - r, gDrawingState.penWidth, gDrawingState.penWidth);
+        else
+            g->DrawEllipse(pen, x - r, y - r, gDrawingState.penWidth, gDrawingState.penWidth);
+
+        if (err > 0) {
+            y += sy;
+            err -= 2 * dx;
+        }
+        err += 2 * dy;
+        x += sx;
+    }
+}
 
 FontSettings currentFont = {nullptr, Gdiplus::Color(255, 0, 0, 0)};
 void CustomFontBox(HWND hwnd){

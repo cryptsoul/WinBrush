@@ -197,6 +197,11 @@ LRESULT CALLBACK WindowProc(HWND hwnd, UINT uMsg, WPARAM wp, LPARAM lp){
                     Drawing(hwnd, canvas, previewGraphics, pStart, pEnd);
                 }
             }
+            else {
+                previewGraphics->DrawImage(canvasBitmap, 0, 0, canvas.Width, canvas.Height);
+                RECT rect = ToRECT(canvas);
+                InvalidateRect(hwnd, &rect, FALSE);
+            }
             return 0;
         }
         case WM_LBUTTONUP:
