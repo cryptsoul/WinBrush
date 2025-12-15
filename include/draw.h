@@ -37,3 +37,4 @@ void UpdatePen();
 void CustomColorBox(HWND hwnd);
 void CustomFontBox(HWND hwnd);
 void CustomeLine(Gdiplus::Graphics* g, int x1, int y1, int x2, int y2, int r, Gdiplus::Pen* pen);
+void FloodFillAdj(int x, int y, Gdiplus::Color oldColor, Gdiplus::Color newColor, Gdiplus::Graphics* g, Gdiplus::Rect canvas, HWND hwnd);

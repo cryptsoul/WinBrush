@@ -14,6 +14,7 @@
 #undef min
 #undef max
 
+
 ToolType currentTool = TOOL_PENCIL;
 DrawingState gDrawingState = {nullptr, Gdiplus::Color(255, 0, 0, 0), 1};
 bool newStroke = true;
@@ -100,6 +101,14 @@ void Drawing (HWND hwnd, Gdiplus::Rect canvas, Gdiplus::Graphics* g, Gdiplus::Po
                 dashPen.SetDashStyle(Gdiplus::DashStyleDash);
                 g->DrawImage(canvasBitmap, 0, 0, canvas.Width, canvas.Height);
                 g->DrawRectangle(&dashPen, upLeft.X, upLeft.Y, width, height);
+
+            }
+            break;
+            case TOOL_FILL:{
+                Gdiplus::Color oldColor;
+                canvasBitmap->GetPixel(canvasEnd.X, canvasEnd.Y, &oldColor);
+                FloodFillAdj(canvasEnd.X, canvasEnd.Y, oldColor,  gDrawingState.penColor, g, canvas, hwnd);
+                    UpdateWindow(hwnd);
 
             }
             break;
@@ -230,4 +239,29 @@ void CustomFontBox(HWND hwnd){
             ReleaseDC(hwnd, hdc);
         }
     }
+}
+
+void FloodFillAdj(int x, int y, Gdiplus::Color oldColor, Gdiplus::Color newColor, Gdiplus::Graphics* g, Gdiplus::Rect canvas, HWND hwnd){
+
+    
+
+    Gdiplus::Color c;
+    canvasBitmap->GetPixel(x, y, &c);
+    int c_i = c.GetValue();
+    int oldColor_i = oldColor.GetValue();
+
+    if (x < 0 || x >= canvas.Width || y < 0 || y >= canvas.Height || c_i != oldColor_i) {
+        return; 
+    }
+
+    // Update the color of the current pixel
+    canvasBitmap->SetPixel(x, y, newColor);
+
+    // Recursively visit all 4 connected neighbors
+    FloodFillAdj(x + 1, y, oldColor, newColor, g, canvas, hwnd); 
+    // FloodFillAdj(x - 1, y, oldColor, newColor, g, canvas, hwnd); 
+    // FloodFillAdj(x, y + 1, oldColor, newColor, g, canvas, hwnd);
+    // FloodFillAdj(x, y - 1, oldColor, newColor, g, canvas, hwnd);
+
+
 }
